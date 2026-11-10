@@ -9,7 +9,8 @@
 // which is visible in the address space, and the game reads all level
 // and graphics data straight from there.
 //
-// This file is GPL, see LICENSE.
+// Copyright (C) 2026 aurasscz. Written with Claude Code (Anthropic).
+// Licensed under the GNU GPL, version 2 or later; see README.md.
 //
 //-----------------------------------------------------------------------------
 

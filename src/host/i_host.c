@@ -2,6 +2,9 @@
 //
 // CasioDoom - PC test harness.
 //
+// Copyright (C) 2026 aurasscz. Written with Claude Code (Anthropic).
+// Licensed under the GNU GPL, version 2 or later; see README.md.
+//
 // Runs the very same engine as the calculator, head-less: time is virtual
 // (one tic per displayed frame), keys come from a script and frames can be
 // dumped as PGM/PBM pictures.  It also enforces a calculator-sized heap.
