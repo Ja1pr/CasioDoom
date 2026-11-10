@@ -1,188 +1,205 @@
 # CasioDoom
 
-Port původního **DOOMu** (zdrojáky [id-software/doom](https://github.com/id-software/doom),
-`linuxdoom-1.10`) jako doplněk (add‑in) pro kalkulačku **CASIO fx‑9860GIII**:
-displej 128×64, 1 bit na pixel, bez zvuku.
+A port of the original **DOOM** to the **CASIO fx-9860GIII** graphing
+calculator, as an add-in: 128×64 pixels, 1 bit per pixel, no sound.
 
-![Snímky z testovací PC verze](docs/screenshots.png)
+![Screenshots from the PC test build](docs/screenshots.png)
 
-> **Stav: neodzkoušeno na skutečné kalkulačce.**
-> Engine je kompletní a běží v testovací PC verzi, která používá přesně stejný
-> kód jako kalkulačka (včetně přehrání originálních dem `DEMO1–3` ve shodě
-> s původní hrou). Kód pro kalkulačku se překládá kompilátorem `sh-elf-gcc`
-> proti hlavičkám gint, ale hotový `.g1a` jsem neměl jak slinkovat ani pustit
-> na reálném hardwaru. Nejrizikovější částí je hledání WADu ve flash paměti
-> (viz [Jak to funguje](#jak-to-funguje)) a množství volné RAM. Počítejte
-> s tím, že první spuštění může vyžadovat doladění.
+> **Status: not yet tested on a real calculator.**
+> The engine is complete and runs in a PC test build that uses exactly the
+> same code as the calculator (it replays the original `DEMO1–3` in sync with
+> the original game). The calculator code compiles with `sh-elf-gcc` against
+> the gint headers, but the final `.g1a` has not been linked or run on real
+> hardware. The riskiest parts are locating the WAD inside flash memory and
+> the amount of free RAM (see [How it works](#how-it-works)). Expect the
+> first run to need some tuning.
 
-## Co je zachováno
+## Why
 
-- celá herní logika originálu (příšery, zbraně, dveře, výtahy, přepínače,
-  teleporty, tajné místnosti, všech 5 obtížností včetně Nightmare),
-- menu: nová hra / epizoda / obtížnost, nastavení, ukládání a načítání (6 pozic),
-  nápověda, ukončení,
-- stavový řádek s obličejem, automapa (zoom, sledování, mřížka, značky),
-- mezihra se statistikami a mapou epizody, závěrečné texty, „cast“ z Doomu II,
-- přechodový efekt „melt“, titulní smyčka s demy,
-- cheaty – protože se na kalkulačce nedají psát, jsou v menu
+No DOOM port existed for the fx-9860GIII. The machine is a tough target: a
+128×64 monochrome LCD, roughly 100 KB of RAM for an add-in and 3 MB of
+storage, while the original game wants 4 MB of RAM and a 4–12 MB data file.
+This project is an attempt to fit the *real* game into it, original game
+logic included, rather than a look-alike.
+
+## Based on
+
+This is a derivative of the original DOOM source code released by
+id Software:
+
+- **<https://github.com/id-software/DOOM>** (`linuxdoom-1.10`), © id Software,
+  released under the GNU General Public License.
+
+All credit for the game goes to id Software. This repository contains only
+source code. **No game data is included**: you need the shareware
+`doom1.wad` or a copy of the game you own. DOOM is a registered trademark of
+id Software LLC; this is an unofficial fan project, not affiliated with or
+endorsed by id Software, Bethesda or CASIO.
+
+The add-in is built on [gint](https://git.planet-casio.com/Lephenixnoir/gint)
+and the [fxSDK](https://git.planet-casio.com/Lephenixnoir/fxsdk) by
+Lephenixnoir. The idea of reading the WAD straight from flash comes from
+CGDoom, the fx-CG port.
+
+## What is kept
+
+- the complete original game logic (monsters, weapons, doors, lifts,
+  switches, teleporters, secrets, all five skill levels),
+- menus: new game / episode / skill, options, 6 save slots, help, quit,
+- status bar with the face, automap (zoom, follow, grid, marks),
+- intermission tally and episode map, finale texts, the DOOM II cast,
+- the "melt" screen wipe and the title loop with demos,
+- cheats: they cannot be typed on a calculator, so they are in
   *Options → Cheats* (IDDQD, IDFA, IDKFA, IDCLIP, IDDT).
 
-Co chybí: zvuk a hudba, barvy, multiplayer, nahrávání dem, nízké detaily a
-plynulá změna velikosti okna (jsou jen dva režimy: se stavovým řádkem a celá
-obrazovka).
+Missing: sound and music, colour, multiplayer, demo recording, low detail
+mode. The view has two sizes only (with status bar / full screen), and a
+saved game is named after its level because there is no way to type a name.
 
-## Postup
+## How it works
 
-### 1. Převod WADu
+**The WAD is never loaded.** The calculator has far too little RAM for even
+one level. A converter (`tools/wad2calc.py`) turns a DOOM WAD into a
+"calculator WAD", `DOOM.CWD`, in which levels are stored as ready-to-use,
+pointer-free structures. At start-up the add-in locates every sector of that
+file in the flash chip, which is visible in the CPU's address space, and
+then reads level geometry, textures and sprites **directly from flash**.
+Only what changes during play lives in RAM:
 
-Kalkulačka má na doplněk jen asi 100 kB RAM a 3 MB úložiště, takže původní WAD
-(4–12 MB) nejde použít přímo. Skript `tools/wad2calc.py` z něj udělá
-„kalkulačkový WAD“ `DOOM.CWD`. Stačí Python 3, nic dalšího.
-
-```sh
-python3 tools/wad2calc.py doom1.wad                      # shareware -> DOOM.CWD (1,9 MB)
-python3 tools/wad2calc.py doom.wad  --maps E1M1-E1M9     # jen 1. epizoda
-python3 tools/wad2calc.py doom2.wad --maps MAP01-MAP06 --shift 2
-python3 tools/wad2calc.py doom.wad mujlevel.wad --maps E1M1   # IWAD + PWAD
-```
-
-| volba | význam |
+| | size |
 |---|---|
-| `-o SOUBOR` | výstup (výchozí `DOOM.CWD`) |
-| `--maps` | které mapy zahrnout (`E1M1-E1M9`, `MAP01,MAP02`…); výchozí: všechny |
-| `--shift 0/1/2` | zmenšení textur a spritů: plné / poloviční (výchozí) / čtvrtinové |
-| `--gamma` | zesvětlení šedé škály (výchozí 1.3) |
-| `--all-textures` | ponechat i textury, které vybrané mapy nepoužívají |
-| `--endian little` | jen pro testovací PC verzi |
+| 128×64 frame buffer (64 grey levels) + 1-bit copy | 9 KB |
+| renderer work tables | ≈ 24 KB |
+| other (HUD, tables, keys…) | ≈ 4 KB |
+| static variables | 4 KB |
+| level state (sectors, lines, things, monsters) | 21–72 KB depending on the level |
 
-Převodník odstraní zvuky a hudbu, převede paletu na 64 odstínů šedi, složí a
-zmenší textury, sprity a podlahy, nahradí písmo, stavový řádek a menu verzemi
-pro 128×64 a mapy přestaví do struktur, které kalkulačka čte přímo z flash.
-Soubor se musí vejít do úložiště kalkulačky (cca 3 MB spolu s doplňkem) –
-u registrované verze nebo Doomu II proto vyberte jen část map.
+To make that possible the level data is split into a constant part in flash
+and a small mutable part in RAM, a pressed switch is one bit per wall side,
+scrolling walls are handled by the renderer, the state and monster tables
+are constants in ROM, and things that never move use only part of `mobj_t`.
+When memory runs low the game leaves out pure scenery (lamps, corpses) while
+loading a level.
 
-### 2. Sestavení doplňku
+**Converter.** It drops sound and music, converts the palette to 64 grey
+levels, composes and shrinks wall textures, sprites and flats, and replaces
+the font, status bar and menu art with versions made for 128×64.
 
-Je potřeba [fxSDK](https://git.planet-casio.com/Lephenixnoir/fxsdk) s jádrem
-[gint](https://git.planet-casio.com/Lephenixnoir/gint) (≥ 2.9):
+**Display.** The renderer draws into an 8-bit grey buffer, so distance
+lighting works as in the original; the finished frame is then reduced to
+1 bit with an 8×8 ordered dither and a contrast stretch. Damage and pickups
+briefly darken / brighten the picture instead of changing the palette.
 
-```sh
-fxsdk build-fx          # vytvoří CasioDoom.g1a
-```
+**Fidelity.** The game code is the original; only data access was changed.
+The demos in the shareware WAD play back in sync, which is a good test that
+the logic is intact.
 
-V repozitáři je i workflow pro GitHub Actions (`.github/workflows/build.yml`),
-které fxSDK nainstaluje a `CasioDoom.g1a` nabídne ke stažení jako artefakt.
-Tento workflow jsem neměl možnost spustit, berte ho jako výchozí bod.
+## Getting it onto the calculator
 
-### 3. Instalace
+1. **Convert a WAD** (Python 3, no extra packages):
 
-1. Na kalkulačce v menu *MEMORY* spusťte **optimalizaci úložiště** (Storage
-   Memory → Optimization). Je to důležité: `DOOM.CWD` musí ležet ve flash
-   pokud možno souvisle.
-2. Přes USB zkopírujte do kořene úložiště `CasioDoom.g1a` a `DOOM.CWD`
-   (nejdřív `DOOM.CWD`).
-3. Spusťte doplněk **DOOM**. Při startu se chvíli zobrazuje „Locating
-   DOOM.CWD…“.
+   ```sh
+   python3 tools/wad2calc.py doom1.wad                    # shareware -> DOOM.CWD (1.9 MB)
+   python3 tools/wad2calc.py doom.wad  --maps E1M1-E1M9   # one episode only
+   python3 tools/wad2calc.py doom2.wad --maps MAP01-MAP06 --shift 2
+   ```
 
-Uložené hry (`DOOMSAV0.DSG` až `DOOMSAV5.DSG`) a nastavení (`DOOM.CFG`) se
-zapisují do úložiště.
+   The file has to fit into the 3 MB storage together with the add-in, so
+   pick a subset of maps for the registered game or DOOM II.
+   `--shift 0/1/2` selects full / half (default) / quarter size graphics.
 
-## Ovládání
+2. **Build the add-in** with the fxSDK and gint ≥ 2.9:
 
-| klávesa | akce |
+   ```sh
+   fxsdk build-fx          # produces CasioDoom.g1a
+   ```
+
+   `.github/workflows/build.yml` is meant to do the same on GitHub Actions
+   and publish the `.g1a` as an artifact; it has not been run yet.
+
+3. **Install.** On the calculator run *MEMORY → Storage Memory →
+   Optimization* first (important: `DOOM.CWD` should lie contiguously in
+   flash), then copy `DOOM.CWD` and `CasioDoom.g1a` to the root of the
+   storage memory over USB and start the **DOOM** add-in.
+
+Saved games (`DOOMSAV0.DSG`…`DOOMSAV5.DSG`) and settings (`DOOM.CFG`) are
+written to the storage memory.
+
+## Controls
+
+| key | action |
 |---|---|
-| šipky | pohyb vpřed/vzad, otáčení |
-| `SHIFT` | střelba |
-| `ALPHA` | použít / otevřít |
-| `OPTN` (držet) | úkroky místo otáčení |
-| `VARS` (držet) | běh |
-| `F5` / `F6` | úkrok vlevo / vpravo |
-| `1`–`7` | zbraně |
-| `F1` | automapa (`+`/`−` zoom, `0` celá mapa, `X,θ,T` sledování, `log` mřížka, `ln` značka, `sin` smazat značky) |
-| `F2` / `F3` | uložit / načíst hru |
-| `F4` | jas (5 úrovní) |
-| `+` / `−` | celá obrazovka ↔ stavový řádek |
-| `EXIT` | menu / zpět |
-| `EXE` | potvrzení (v menu a u dotazů = „ano“), zopakování poslední zprávy |
-| `DEL` | o úroveň menu zpět |
-| `AC/ON` | pauza |
-| `MENU` | hlavní menu kalkulačky |
+| arrows | move / turn |
+| `SHIFT` | fire |
+| `ALPHA` | use / open |
+| `OPTN` (hold) | strafe instead of turning |
+| `VARS` (hold) | run |
+| `F5` / `F6` | step left / right |
+| `1`–`7` | weapons |
+| `F1` | automap (`+`/`−` zoom, `0` whole map, `X,θ,T` follow, `log` grid, `ln` mark, `sin` clear marks) |
+| `F2` / `F3` | save / load |
+| `F4` | brightness (5 levels) |
+| `+` / `−` | full screen ↔ status bar |
+| `EXIT` | menu / back |
+| `EXE` | confirm ("yes"), repeat the last message |
+| `DEL` | one menu level back |
+| `AC/ON` | pause |
+| `MENU` | calculator main menu |
 
-## Jak to funguje
+## PC test build
 
-**Paměť.** fx‑9860GIII dává doplňku řádově 100 kB RAM. Do té by se nevešla ani
-jediná mapa, natož textury. Proto se `DOOM.CWD` vůbec nenačítá: při startu
-doplněk projde soubor po sektorech, najde každý z nich ve flash paměti (ta je
-vidět v adresním prostoru procesoru) a hra pak čte geometrii map, textury a
-sprity **přímo z flash**. V RAM je jen to, co se za hry mění:
-
-| | velikost |
-|---|---|
-| obrazový buffer 128×64 (64 odstínů šedi) + 1bit kopie | 9 kB |
-| pracovní tabulky rendereru | ≈ 24 kB |
-| ostatní (HUD, tabulky, klávesy…) | ≈ 4 kB |
-| statické proměnné | 4 kB |
-| stav mapy (sektory, čáry, předměty, příšery) | 21–72 kB podle mapy |
-
-Pro mapy shareware epizody na Ultra‑Violence vychází stav mapy takto: E1M1
-21 kB, E1M2 45, E1M3 56, E1M4 38, E1M5 44, E1M6 72, E1M7 53, E1M8 30, E1M9
-37 kB. Když paměť dochází, hra při načítání mapy vynechá čistě dekorační
-předměty (lampy, mrtvoly); kdyby nestačilo ani to, skončí hlášením
-„Out of memory“. Kolik RAM kalkulačka skutečně poskytne, jsem nemohl změřit.
-
-Aby to šlo, jsou oproti originálu data mapy rozdělena na neměnnou část ve
-flash (bez ukazatelů, jen indexy) a malou proměnnou část v RAM; stisknutý
-přepínač je 1 bit na stranu zdi, rolující zdi řeší renderer, tabulky stavů a
-příšer jsou konstanty v ROM a předměty, které se nehýbou, zabírají jen část
-struktury `mobj_t`.
-
-**Fragmentace.** Pokud soubor ve flash neleží souvisle, musí se každý blok dat,
-který přesahuje přes „šev“, zkopírovat do RAM – a té je málo. Proto ta
-optimalizace úložiště před kopírováním. Po zápisu do úložiště (uložení hry) se
-soubor teoreticky může přesunout; kdyby se hra po uložení začala chovat
-divně, ukončete ji a spusťte znovu.
-
-**Obraz.** Renderer kreslí do 8bitového bufferu v odstínech šedi (osvětlení
-podle vzdálenosti funguje jako v originále) a teprve hotový snímek se
-uspořádaným ditheringem 8×8 převede na 1 bit. Protože je Doom tmavá hra,
-kontrast se při tom roztahuje; jas se mění klávesou `F4`. Zranění a sebrání
-předmětu místo změny palety krátce ztmaví / zesvětlí obraz.
-
-**Věrnost.** Herní kód je původní; upravený je jen přístup k datům. Původní
-dema ze shareware WADu se přehrávají ve shodě s originálem (hráč v nich
-dojde tam, kam má), což je dobrý test, že se logika nezměnila.
-
-## Testovací PC verze
-
-`src/host` obsahuje bezhlavou verzi pro PC: stejný engine, virtuální čas,
-klávesy ze skriptu a ukládání snímků.
+`src/host` is a head-less build of the same engine with virtual time,
+scripted keys and frame dumps:
 
 ```sh
 make -C src/host
 python3 tools/wad2calc.py doom1.wad -o test.cwd --endian little
-src/host/doomhost -wad test.cwd -warp 1 1 -frames 300 -dump snimky -every 20 \
+src/host/doomhost -wad test.cwd -warp 1 1 -frames 300 -dump frames -every 20 \
     -keys "50:up 150:-up 160:fire 165:-fire"
-src/host/doomhost -wad test.cwd -playdemo DEMO1 -frames 3000   # test synchronizace
+src/host/doomhost -wad test.cwd -playdemo DEMO1 -frames 3000   # sync test
 ```
 
-Další volby: `-heap N` (velikost haldy; 64bitové PC potřebuje víc než
-kalkulačka), `-frag N` (simulace fragmentovaného souboru), `-skill 1-5`,
-`-exitlevel T`, `-finale T`. Na konci vypíše, kolik RAM by mapa zabrala na
-kalkulačce.
+Other options: `-heap N`, `-frag N` (simulate a fragmented file),
+`-skill 1-5`, `-exitlevel T`, `-finale T`. On exit it prints how much RAM
+the level would need on the calculator.
 
-## Struktura
+## Layout
 
 | | |
 |---|---|
-| `tools/wad2calc.py` | převodník WAD → `DOOM.CWD` |
-| `tools/gentables.c` | generátor `src/r_viewtab.c` (tabulky pro šířku 128) |
-| `src/*.c` | engine (upravený `linuxdoom-1.10`) |
-| `src/fx/i_fx.c` | vrstva pro kalkulačku (gint): displej, klávesy, časovač, soubory, WAD ve flash |
-| `src/host/` | testovací PC verze |
-| `CMakeLists.txt` | sestavení přes fxSDK |
+| `tools/wad2calc.py` | WAD → `DOOM.CWD` converter |
+| `tools/gentables.c` | generator of `src/r_viewtab.c` (tables for a 128 pixel wide view) |
+| `src/*.c` | the engine (modified `linuxdoom-1.10`) |
+| `src/fx/i_fx.c` | calculator layer (gint): display, keys, timer, files, WAD in flash |
+| `src/host/` | PC test build |
+| `CMakeLists.txt` | fxSDK build |
 
-## Licence
+## How it was made
 
-Zdrojový kód DOOMu vydala id Software pod GNU GPL; tento port je rovněž pod
-GPL (viz `LICENSE`). Herní data (WAD) součástí repozitáře nejsou – použijte
-shareware `doom1.wad` nebo vlastní zakoupenou kopii hry.
+The port, the converter and this documentation were written by an AI coding
+agent, [Claude Code](https://claude.com/claude-code) by Anthropic, in a
+single session of roughly seven hours, directed by the repository owner. No
+calculator was attached to that session, which is why the result is
+untested on hardware.
+
+Usage of that session as reported by the tool when this file was written:
+
+| | |
+|---|---|
+| output tokens | ≈ 0.33 million |
+| fresh input tokens | ≈ 0.05 million |
+| cached context written | ≈ 1.1 million |
+| cached context re-read | ≈ 57 million |
+| cost | **≈ 42 USD** |
+
+## License
+
+id Software released the DOOM source code under the GNU General Public
+License, version 2; that licence text, exactly as it ships in the upstream
+repository, is included here as `LICENSE-DOOM.txt`. (Many source files
+still carry the header of the older "DOOM Source Code License", as they do
+upstream; the GPL release supersedes it.)
+
+The changes and additions made for this port are offered under the GNU GPL,
+version 2 or (at your option) any later version; `LICENSE` holds the text
+of version 3. Game data is not covered and not included.
