@@ -194,11 +194,12 @@ Usage of that session as reported by the tool when this file was written:
 
 ## License
 
-id Software released the DOOM source code under the GNU General Public
-License, version 2; that licence text, exactly as it ships in the upstream
-repository, is included here as `LICENSE-DOOM.txt`. (Many source files
-still carry the header of the older "DOOM Source Code License", as they do
-upstream; the GPL release supersedes it.)
+CasioDoom is distributed under the **GNU General Public License, version 2**
+(see `LICENSE`), the licence under which id Software released the DOOM
+source code. The file is the licence text exactly as it ships in the
+upstream repository. (Many source files still carry the header of the older
+"DOOM Source Code License", as they do upstream; the GPL release supersedes
+it.)
 
 CasioDoom port: Copyright (C) 2026 aurasscz. Written with
 [Claude Code](https://claude.com/claude-code) (Anthropic).
@@ -206,8 +207,6 @@ DOOM source code: Copyright (C) 1993-1996 id Software, Inc.
 
 If you redistribute or modify this project, the GPL requires you to keep
 these copyright notices (in the files and on the in-game credits page)
-intact and to state what you changed.
-
-The changes and additions made for this port are offered under the GNU GPL,
-version 2 or (at your option) any later version; `LICENSE` holds the text
-of version 3. Game data is not covered and not included.
+intact and to state what you changed. The parts written for this port may
+also be used under any later version of the GPL. Game data is not covered
+and not included.
