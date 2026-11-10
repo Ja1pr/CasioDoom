@@ -21,6 +21,9 @@ Usage:
     python3 wad2calc.py doom.wad mylevel.wad --maps E1M1
 
 Only the Python standard library is needed.
+
+Copyright (C) 2026 aurasscz. Written with Claude Code (Anthropic).
+Licensed under the GNU GPL, version 2 or later; see README.md.
 """
 
 import argparse
@@ -1089,8 +1092,8 @@ class Converter:
             "ART: ADRIAN CARMACK, K. CLOUD",
             "DESIGN: SANDY PETERSEN ...",
             "",
-            "CASIODOOM: FX-9860GIII PORT",
-            "128X64, 1 BIT, NO SOUND",
+            "CASIODOOM (C) 2026 AURASSCZ",
+            "WRITTEN WITH CLAUDE CODE",
         ]
         img = Image(128, 64, WHITE)
         for i, line in enumerate(credit_lines):

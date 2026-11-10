@@ -1,6 +1,9 @@
 /*
  * gentables.c - generates src/r_viewtab.c for CasioDoom.
  *
+ * Copyright (C) 2026 aurasscz. Written with Claude Code (Anthropic).
+ * Licensed under the GNU GPL, version 2 or later; see README.md.
+ *
  * The 3D view of the calculator port is always 128 pixels wide, so the
  * tables DOOM normally computes at start-up (R_InitTextureMapping,
  * R_InitLightTables, distscale) are constants and can live in ROM.
