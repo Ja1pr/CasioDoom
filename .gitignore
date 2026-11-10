@@ -1,0 +1,8 @@
+src/host/build/
+src/host/doomhost
+*.CWD
+*.cwd
+*.wad
+*.WAD
+build-fx/
+__pycache__/
