@@ -27,7 +27,7 @@
 byte*		screens[1];
 byte*		monoscreen;
 
-int		usegamma;
+int		usegamma = 2;
 
 // 8x8 ordered dither matrix, scaled to 0..62 so that grey 0 is always
 // black and grey 63 is always white.
@@ -51,11 +51,15 @@ static int	lutpalette = -1;
 static int	curpalette;
 
 
+#define BLACKPOINT	3
+
 static void V_BuildLut (void)
 {
     int		i;
     int		g;
     int		flash;
+    int		hi;
+    static const byte whitepoint[5] = { 58, 50, 43, 36, 30 };
 
     // palettes 1-8: pain (red), 9-12: bonus, 13: radiation suit
     if (curpalette >= 1 && curpalette <= 8)
@@ -67,10 +71,20 @@ static void V_BuildLut (void)
     else
 	flash = 0;
 
+    // DOOM is a dark game and a 1 bit LCD has no shades to spare, so the
+    // grey range that actually occurs is stretched to full contrast.
+    // The brightness setting moves the white point.
+    hi = whitepoint[usegamma % 5];
     for (i=0 ; i<64 ; i++)
     {
+	g = (i - BLACKPOINT) * 63 / (hi - BLACKPOINT);
+	if (g < 0)
+	    g = 0;
+	if (g > 63)
+	    g = 63;
 	// lift the midtones
-	g = i + (i * (63 - i) * usegamma) / 160 + flash;
+	g += g * (63 - g) / 126;
+	g += flash;
 	if (flash < 0 && g < 0)
 	    g = i / 4;
 	if (g < 0)
@@ -218,6 +232,32 @@ V_DrawPatchFlipped
     w = patch->width; 
     for (col=0 ; col<w ; col++)
 	V_DrawPatchCol (x+col, y, patch, w-1-col);
+} 
+
+
+//
+// V_DrawSprite
+// Draws a sprite patch (whose offsets are in map units while its
+// pixels are reduced by 2^gfxshift) at its reduced size.
+//
+void
+V_DrawSprite
+( int		x,
+  int		y,
+  const patch_t*	patch,
+  boolean	flipped ) 
+{ 
+    int		col; 
+    int		w = patch->width; 
+	 
+    y -= patch->topoffset >> gfxshift; 
+    if (flipped)
+	x -= (patch->worldwidth - patch->leftoffset) >> gfxshift;
+    else
+	x -= patch->leftoffset >> gfxshift; 
+
+    for (col=0 ; col<w ; col++)
+	V_DrawPatchCol (x+col, y, patch, flipped ? w-1-col : col);
 } 
 
 

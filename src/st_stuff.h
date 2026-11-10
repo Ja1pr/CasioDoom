@@ -28,8 +28,7 @@
 #include "d_event.h"
 
 // Size of statusbar.
-// Now sensitive for scaling.
-#define ST_HEIGHT	32*SCREEN_MUL
+#define ST_HEIGHT	10
 #define ST_WIDTH	SCREENWIDTH
 #define ST_Y		(SCREENHEIGHT - ST_HEIGHT)
 
@@ -45,7 +44,7 @@ boolean ST_Responder (event_t* ev);
 void ST_Ticker (void);
 
 // Called by main loop.
-void ST_Drawer (boolean fullscreen, boolean refresh);
+void ST_Drawer (void);
 
 // Called when the console player is spawned on each level.
 void ST_Start (void);
@@ -53,30 +52,17 @@ void ST_Start (void);
 // Called by startup code.
 void ST_Init (void);
 
-
-
-// States for status bar code.
-typedef enum
+// The cheat codes, as menu actions.
+enum
 {
-    AutomapState,
-    FirstPersonState
-    
-} st_stateenum_t;
+    ST_CHEAT_GOD,
+    ST_CHEAT_FA,
+    ST_CHEAT_KFA,
+    ST_CHEAT_NOCLIP,
+    ST_CHEAT_MAP
+};
 
-
-// States for the chat code.
-typedef enum
-{
-    StartChatState,
-    WaitDestState,
-    GetChatState
-    
-} st_chatstateenum_t;
-
-
-boolean ST_Responder(event_t* ev);
-
-
+void ST_Cheat (int cheat);
 
 #endif
 //-----------------------------------------------------------------------------

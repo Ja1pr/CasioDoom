@@ -1016,7 +1016,7 @@ class Converter:
         bar = Image(128, 10, WHITE)
         for x in range(128):
             bar.pix[0][x] = BLACK
-        for x in (17, 40, 54, 68, 91, 98):
+        for x in (17, 40, 66, 80, 103, 110):
             for y in range(1, 10):
                 bar.pix[y][x] = BLACK
         self.ui_patch("STBAR", bar)

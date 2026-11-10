@@ -163,7 +163,7 @@ boolean P_CrossSubsector (int num)
 
     for ( ; count ; seg++, count--)
     {
-	line = seg->linedef;
+	line = SG_LINE(seg);
 
 	// allready checked other side?
 	if (LN_DATA(line).validcount == validcount)
@@ -171,8 +171,8 @@ boolean P_CrossSubsector (int num)
 	
 	LN_DATA(line).validcount = validcount;
 		
-	v1 = SG_V1(line);
-	v2 = SG_V2(line);
+	v1 = LN_V1(line);
+	v2 = LN_V2(line);
 	s1 = P_DivlineSide (v1->x,v1->y, &strace);
 	s2 = P_DivlineSide (v2->x, v2->y, &strace);
 

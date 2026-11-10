@@ -32,6 +32,7 @@
 #include "m_bbox.h"
 
 #include "doomdef.h"
+#include "z_zone.h"
 #include "p_local.h"
 
 
@@ -539,7 +540,13 @@ P_BlockThingsIterator
 //
 // INTERCEPT ROUTINES
 //
-intercept_t	intercepts[MAXINTERCEPTS];
+// on the heap, see P_InitIntercepts
+intercept_t*	intercepts;
+
+void P_InitIntercepts (void)
+{
+    intercepts = Z_Malloc (MAXINTERCEPTS*sizeof(intercept_t), PU_STATIC, 0);
+}
 intercept_t*	intercept_p;
 
 divline_t 	trace;

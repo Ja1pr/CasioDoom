@@ -237,3 +237,13 @@ const void* W_CacheLumpName (const char* name, int tag)
 {
     return W_CacheLumpNum (W_GetNumForName(name), tag);
 }
+
+
+void W_ReleaseLump (const void* ptr)
+{
+    int		i;
+
+    for (i=0 ; i<MAXCOPIES ; i++)
+	if (copies[i].ptr && copies[i].ptr == ptr)
+	    Z_Free (copies[i].ptr);
+}

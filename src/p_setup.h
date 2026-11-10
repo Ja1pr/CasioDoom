@@ -37,6 +37,11 @@ P_SetupLevel
 // Called by startup code.
 void P_Init (void);
 
+// "E1M1" / "MAP01"
+void P_MapName (int episode, int map, char* lumpname);
+// Is the level in the calculator WAD?
+boolean P_MapExists (int episode, int map);
+
 #endif
 //-----------------------------------------------------------------------------
 //

@@ -28,7 +28,6 @@
 
 
 #include <stdlib.h>
-#include <math.h>
 
 
 #include "doomdef.h"
@@ -581,14 +580,17 @@ void R_ExecuteSetViewSize (void)
     centerxfrac = centerx<<FRACBITS;
     centeryfrac = centery<<FRACBITS;
     projection = centerxfrac;
+    // Use fineangles/2 to get a lookup angle for each screen column
+    clipangle = xtoviewangle[0];
 
     // psprite scales: weapons are still laid out for a 320 wide screen
     pspritescale = FRACUNIT*viewwidth/BASE_WIDTH;
     pspriteiscale = FRACUNIT*BASE_WIDTH/viewwidth;
     
     // thing clipping
-    for (i=0 ; i<viewwidth ; i++)
-	screenheightarray[i] = viewheight;
+    if (screenheightarray)
+	for (i=0 ; i<viewwidth ; i++)
+	    screenheightarray[i] = viewheight;
     
     // planes
     for (i=0 ; i<viewheight ; i++)

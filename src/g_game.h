@@ -31,8 +31,6 @@
 //
 // GAME
 //
-void G_DeathMatchSpawnPlayer (int playernum);
-
 void G_InitNew (skill_t skill, int episode, int map);
 
 // Can be called by the startup code or M_Responder.
@@ -40,24 +38,17 @@ void G_InitNew (skill_t skill, int episode, int map);
 // but a warp test can start elsewhere
 void G_DeferedInitNew (skill_t skill, int episode, int map);
 
-void G_DeferedPlayDemo (char* demo);
+void G_DeferedPlayDemo (const char* demo);
 
-// Can be called by the startup code or M_Responder,
-// calls P_SetupLevel or W_EnterWorld.
-void G_LoadGame (char* name);
+// Save games live in numbered slots.
+void G_SaveName (int slot, char* name);
+void G_LoadGame (int slot);
 
 void G_DoLoadGame (void);
 
 // Called by M_Responder.
-void G_SaveGame (int slot, char* description);
+void G_SaveGame (int slot, const char* description);
 
-// Only called by startup code.
-void G_RecordDemo (char* name);
-
-void G_BeginRecording (void);
-
-void G_PlayDemo (char* name);
-void G_TimeDemo (char* name);
 boolean G_CheckDemoStatus (void);
 
 void G_ExitLevel (void);

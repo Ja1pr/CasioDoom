@@ -42,6 +42,31 @@ void G_PlayerReborn (int player);
 
 
 //
+// CasioDoom: the state and mobjinfo tables are constants in ROM, so the
+// changes -fast and Nightmare! used to patch into them are applied here.
+//
+extern boolean	fastmonsters;
+
+static int P_StateTics (const state_t* st)
+{
+    if (fastmonsters && st >= &states[S_SARG_RUN1] && st <= &states[S_SARG_PAIN2])
+	return st->tics >> 1;
+    return st->tics;
+}
+
+static fixed_t P_MissileSpeed (mobj_t* th)
+{
+    if (fastmonsters)
+    {
+	if (th->type == MT_BRUISERSHOT || th->type == MT_HEADSHOT
+	    || th->type == MT_TROOPSHOT)
+	    return 20*FRACUNIT;
+    }
+    return th->info->speed;
+}
+
+
+//
 // P_SetMobjState
 // Returns true if the mobj is still present.
 //
@@ -65,7 +90,7 @@ P_SetMobjState
 
 	st = &states[state];
 	mobj->state = st;
-	mobj->tics = st->tics;
+	mobj->tics = P_StateTics (st);
 	mobj->sprite = st->sprite;
 	mobj->frame = st->frame;
 
@@ -511,7 +536,7 @@ P_SpawnMobj
     st = &states[info->spawnstate];
 
     mobj->state = st;
-    mobj->tics = st->tics;
+    mobj->tics = P_StateTics (st);
     mobj->sprite = st->sprite;
     mobj->frame = st->frame;
 
@@ -835,11 +860,11 @@ P_SpawnMissile
 
     th->angle = an;
     an >>= ANGLETOFINESHIFT;
-    th->momx = FixedMul (th->info->speed, finecosine[an]);
-    th->momy = FixedMul (th->info->speed, finesine[an]);
+    th->momx = FixedMul (P_MissileSpeed (th), finecosine[an]);
+    th->momy = FixedMul (P_MissileSpeed (th), finesine[an]);
 	
     dist = P_AproxDistance (dest->x - source->x, dest->y - source->y);
-    dist = dist / th->info->speed;
+    dist = dist / P_MissileSpeed (th);
 
     if (dist < 1)
 	dist = 1;

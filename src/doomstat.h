@@ -149,7 +149,6 @@ extern	int		scaledviewwidth;
 
 // This one is related to the 3-screen display mode.
 // ANG90 = left side, ANG270 = right
-extern  int	viewangleoffset;
 
 // Player taking events, and displaying.
 extern  int	consoleplayer;	
@@ -213,9 +212,6 @@ extern  boolean		playeringame[MAXPLAYERS];
 
 
 // Player spawn spots for deathmatch.
-#define MAX_DM_STARTS   10
-extern  mapthing_t      deathmatchstarts[MAX_DM_STARTS];
-extern  mapthing_t*	deathmatch_p;
 
 // Player spawn spots.
 extern  mapthing_t      playerstarts[MAXPLAYERS];

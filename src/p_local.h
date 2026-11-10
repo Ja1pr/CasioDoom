@@ -151,7 +151,8 @@ typedef struct
 
 #define MAXINTERCEPTS	128
 
-extern intercept_t	intercepts[MAXINTERCEPTS];
+extern intercept_t*	intercepts;
+void P_InitIntercepts (void);
 extern intercept_t*	intercept_p;
 
 typedef boolean (*traverser_t) (intercept_t *in);

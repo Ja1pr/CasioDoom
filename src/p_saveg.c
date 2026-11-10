@@ -1,26 +1,18 @@
-// Emacs style mode select   -*- C++ -*- 
 //-----------------------------------------------------------------------------
 //
-// $Id:$
-//
 // Copyright (C) 1993-1996 by id Software, Inc.
-//
-// This source is available for distribution and/or modification
-// only under the terms of the DOOM Source Code License as
-// published by id Software. All rights reserved.
-//
-// The source is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// FITNESS FOR A PARTICULAR PURPOSE. See the DOOM Source Code License
-// for more details.
-//
-// $Log:$
+// CasioDoom changes: GPL, see LICENSE.
 //
 // DESCRIPTION:
 //	Archiving: SaveGame I/O.
 //
+//  CasioDoom: there is no RAM for a save buffer, so the game is streamed
+//  to the file through a small buffer. Structures are written as they are
+//  in memory, with pointers replaced by indices.
+//
 //-----------------------------------------------------------------------------
 
+#include <string.h>
 
 #include "i_system.h"
 #include "z_zone.h"
@@ -29,14 +21,114 @@
 // State.
 #include "doomstat.h"
 #include "r_state.h"
+#include "p_saveg.h"
 
-byte*		save_p;
+#define SVBUFSIZE	256
+
+static byte*	svbuf;
+static int	svpos;
+static int	svlen;
+static boolean	sverror;
 
 
-// Pads save_p to a 4-byte boundary
-//  so that the load/save works on SGI&Gecko.
-#define PADSAVEP()	save_p += (4 - ((int) save_p & 3)) & 3
+//
+// Stream helpers
+//
+void SV_Begin (void)
+{
+    svbuf = Z_Malloc (SVBUFSIZE, PU_STATIC, 0);
+    svpos = svlen = 0;
+    sverror = false;
+}
 
+static void SV_Flush (void)
+{
+    if (svpos && I_FileWrite (svbuf, svpos) != svpos)
+	sverror = true;
+    svpos = 0;
+}
+
+// Returns false if anything went wrong.
+boolean SV_End (boolean writing)
+{
+    if (writing)
+	SV_Flush ();
+    Z_Free (svbuf);
+    return !sverror;
+}
+
+void SV_Write (const void* data, int len)
+{
+    const byte*	p = data;
+    int		n;
+
+    while (len)
+    {
+	n = SVBUFSIZE - svpos;
+	if (n > len)
+	    n = len;
+	memcpy (svbuf + svpos, p, n);
+	svpos += n;
+	p += n;
+	len -= n;
+	if (svpos == SVBUFSIZE)
+	    SV_Flush ();
+    }
+}
+
+void SV_Read (void* data, int len)
+{
+    byte*	p = data;
+    int		n;
+
+    while (len)
+    {
+	if (svpos == svlen)
+	{
+	    svlen = I_FileRead (svbuf, SVBUFSIZE);
+	    svpos = 0;
+	    if (svlen <= 0)
+	    {
+		svlen = 0;
+		sverror = true;
+		memset (p, 0, len);
+		return;
+	    }
+	}
+	n = svlen - svpos;
+	if (n > len)
+	    n = len;
+	memcpy (p, svbuf + svpos, n);
+	svpos += n;
+	p += n;
+	len -= n;
+    }
+}
+
+void SV_WriteByte (int v)
+{
+    byte	b = v;
+    SV_Write (&b, 1);
+}
+
+int SV_ReadByte (void)
+{
+    byte	b;
+    SV_Read (&b, 1);
+    return b;
+}
+
+static void SV_WriteInt (int v)
+{
+    SV_Write (&v, sizeof(v));
+}
+
+static int SV_ReadInt (void)
+{
+    int		v;
+    SV_Read (&v, sizeof(v));
+    return v;
+}
 
 
 //
@@ -46,26 +138,23 @@ void P_ArchivePlayers (void)
 {
     int		i;
     int		j;
-    player_t*	dest;
+    player_t	p;
 		
     for (i=0 ; i<MAXPLAYERS ; i++)
     {
 	if (!playeringame[i])
 	    continue;
 	
-	PADSAVEP();
-
-	dest = (player_t *)save_p;
-	memcpy (dest,&players[i],sizeof(player_t));
-	save_p += sizeof(player_t);
+	p = players[i];
 	for (j=0 ; j<NUMPSPRITES ; j++)
 	{
-	    if (dest->psprites[j].state)
+	    if (p.psprites[j].state)
 	    {
-		dest->psprites[j].state 
-		    = (const state_t *)(dest->psprites[j].state-states);
+		p.psprites[j].state 
+		    = (state_t *)(size_t)(p.psprites[j].state-states);
 	    }
 	}
+	SV_Write (&p, sizeof(p));
     }
 }
 
@@ -84,10 +173,7 @@ void P_UnArchivePlayers (void)
 	if (!playeringame[i])
 	    continue;
 	
-	PADSAVEP();
-
-	memcpy (&players[i],save_p, sizeof(player_t));
-	save_p += sizeof(player_t);
+	SV_Read (&players[i], sizeof(player_t));
 	
 	// will be set when unarc thinker
 	players[i].mo = NULL;	
@@ -99,7 +185,7 @@ void P_UnArchivePlayers (void)
 	    if (players[i]. psprites[j].state)
 	    {
 		players[i]. psprites[j].state 
-		    = &states[ (int)players[i].psprites[j].state ];
+		    = &states[ (size_t)players[i].psprites[j].state ];
 	    }
 	}
     }
@@ -111,50 +197,23 @@ void P_UnArchivePlayers (void)
 //
 void P_ArchiveWorld (void)
 {
-    int			i;
-    int			j;
-    sector_t*		sec;
-    const line_t*		li;
-    const side_t*		si;
-    short*		put;
-	
-    put = (short *)save_p;
-    
-    // do sectors
-    for (i=0, sec = sectors ; i<numsectors ; i++,sec++)
-    {
-	*put++ = sec->floorheight >> FRACBITS;
-	*put++ = sec->ceilingheight >> FRACBITS;
-	*put++ = sec->floorpic;
-	*put++ = sec->ceilingpic;
-	*put++ = sec->lightlevel;
-	*put++ = sec->special;		// needed?
-	*put++ = sec->tag;		// needed?
-    }
+    int		i;
 
-    
-    // do lines
-    for (i=0, li = lines ; i<numlines ; i++,li++)
-    {
-	*put++ = li->flags;
-	*put++ = li->special;
-	*put++ = li->tag;
-	for (j=0 ; j<2 ; j++)
-	{
-	    if (li->sidenum[j] == -1)
-		continue;
-	    
-	    si = &sides[li->sidenum[j]];
+    SV_WriteInt (numsectors);
+    SV_WriteInt (numlines);
+    SV_WriteInt (numsides);
+    SV_Write (sectors, numsectors*sizeof(sector_t));
+    SV_Write (linedata, numlines*sizeof(linedata_t));
+    SV_Write (sideswitched, (numsides+7)/8);
 
-	    *put++ = si->textureoffset >> FRACBITS;
-	    *put++ = si->rowoffset >> FRACBITS;
-	    *put++ = si->toptexture;
-	    *put++ = si->bottomtexture;
-	    *put++ = si->midtexture;	
-	}
+    // buttons that are still counting down
+    for (i=0 ; i<MAXBUTTONS ; i++)
+    {
+	SV_WriteInt (buttonlist[i].btimer
+		     ? (int)(buttonlist[i].line - lines) : -1);
+	SV_WriteInt (buttonlist[i].btimer);
+	SV_WriteInt (buttonlist[i].restore);
     }
-	
-    save_p = (byte *)put;
 }
 
 
@@ -164,48 +223,37 @@ void P_ArchiveWorld (void)
 //
 void P_UnArchiveWorld (void)
 {
-    int			i;
-    int			j;
-    sector_t*		sec;
-    const line_t*		li;
-    const side_t*		si;
-    short*		get;
-	
-    get = (short *)save_p;
-    
-    // do sectors
-    for (i=0, sec = sectors ; i<numsectors ; i++,sec++)
+    int		i;
+    int		line;
+
+    if (SV_ReadInt () != numsectors
+	|| SV_ReadInt () != numlines
+	|| SV_ReadInt () != numsides)
+	I_Error ("Savegame is from a different DOOM.CWD");
+
+    SV_Read (sectors, numsectors*sizeof(sector_t));
+    for (i=0 ; i<numsectors ; i++)
     {
-	sec->floorheight = *get++ << FRACBITS;
-	sec->ceilingheight = *get++ << FRACBITS;
-	sec->floorpic = *get++;
-	sec->ceilingpic = *get++;
-	sec->lightlevel = *get++;
-	sec->special = *get++;		// needed?
-	sec->tag = *get++;		// needed?
-	sec->specialdata = 0;
-	sec->soundtarget = 0;
+	sectors[i].specialdata = 0;
+	sectors[i].soundtarget = 0;
+	sectors[i].thinglist = 0;
+	sectors[i].validcount = 0;
     }
-    
-    // do lines
-    for (i=0, li = lines ; i<numlines ; i++,li++)
+    SV_Read (linedata, numlines*sizeof(linedata_t));
+    for (i=0 ; i<numlines ; i++)
+	linedata[i].validcount = 0;
+    SV_Read (sideswitched, (numsides+7)/8);
+
+    for (i=0 ; i<MAXBUTTONS ; i++)
     {
-	li->flags = *get++;
-	li->special = *get++;
-	li->tag = *get++;
-	for (j=0 ; j<2 ; j++)
-	{
-	    if (li->sidenum[j] == -1)
-		continue;
-	    si = &sides[li->sidenum[j]];
-	    si->textureoffset = *get++ << FRACBITS;
-	    si->rowoffset = *get++ << FRACBITS;
-	    si->toptexture = *get++;
-	    si->bottomtexture = *get++;
-	    si->midtexture = *get++;
-	}
+	line = SV_ReadInt ();
+	buttonlist[i].btimer = SV_ReadInt ();
+	buttonlist[i].restore = SV_ReadInt ();
+	if (line < 0 || line >= numlines)
+	    buttonlist[i].btimer = 0;
+	else
+	    buttonlist[i].line = &lines[line];
     }
-    save_p = (byte *)get;	
 }
 
 
@@ -230,22 +278,20 @@ typedef enum
 void P_ArchiveThinkers (void)
 {
     thinker_t*		th;
-    mobj_t*		mobj;
+    mobj_t		mobj;
 	
     // save off the current thinkers
     for (th = thinkercap.next ; th != &thinkercap ; th=th->next)
     {
 	if (th->function.acp1 == (actionf_p1)P_MobjThinker)
 	{
-	    *save_p++ = tc_mobj;
-	    PADSAVEP();
-	    mobj = (mobj_t *)save_p;
-	    memcpy (mobj, th, sizeof(*mobj));
-	    save_p += sizeof(*mobj);
-	    mobj->state = (const state_t *)(mobj->state - states);
+	    SV_WriteByte (tc_mobj);
+	    mobj = *(mobj_t *)th;
+	    mobj.state = (state_t *)(size_t)(mobj.state - states);
 	    
-	    if (mobj->player)
-		mobj->player = (player_t *)((mobj->player-players) + 1);
+	    if (mobj.player)
+		mobj.player = (player_t *)(size_t)((mobj.player-players) + 1);
+	    SV_Write (&mobj, sizeof(mobj));
 	    continue;
 	}
 		
@@ -253,7 +299,7 @@ void P_ArchiveThinkers (void)
     }
 
     // add a terminating marker
-    *save_p++ = tc_end;	
+    SV_WriteByte (tc_end);
 }
 
 
@@ -282,26 +328,25 @@ void P_UnArchiveThinkers (void)
 	currentthinker = next;
     }
     P_InitThinkers ();
-	
+    
     // read in saved thinkers
     while (1)
     {
-	tclass = *save_p++;
+	tclass = SV_ReadByte ();
 	switch (tclass)
 	{
 	  case tc_end:
 	    return; 	// end of list
 			
 	  case tc_mobj:
-	    PADSAVEP();
 	    mobj = Z_Malloc (sizeof(*mobj), PU_LEVEL, NULL);
-	    memcpy (mobj, save_p, sizeof(*mobj));
-	    save_p += sizeof(*mobj);
-	    mobj->state = &states[(int)mobj->state];
+	    SV_Read (mobj, sizeof(*mobj));
+	    mobj->state = &states[(size_t)mobj->state];
 	    mobj->target = NULL;
+	    mobj->tracer = NULL;
 	    if (mobj->player)
 	    {
-		mobj->player = &players[(int)mobj->player-1];
+		mobj->player = &players[(size_t)mobj->player-1];
 		mobj->player->mo = mobj;
 	    }
 	    P_SetThingPosition (mobj);
@@ -313,7 +358,7 @@ void P_UnArchiveThinkers (void)
 	    break;
 			
 	  default:
-	    I_Error ("Unknown tclass %i in savegame",tclass);
+	    I_Error ("Bad savegame (thinker %i)",tclass);
 	}
 	
     }
@@ -333,10 +378,27 @@ enum
     tc_flash,
     tc_strobe,
     tc_glow,
+    tc_fire,
     tc_endspecials
 
 } specials_e;	
 
+// All of these structures start with a thinker followed by fields, one
+// of which is the sector pointer; it is stored as an index.
+#define ARCHIVE(type, var, tc) \
+    { \
+	type var = *(type *)th; \
+	SV_WriteByte (tc); \
+	var.sector = (sector_t *)(size_t)(var.sector - sectors); \
+	SV_Write (&var, sizeof(var)); \
+    }
+
+#define UNARCHIVE(type, var, func) \
+    type* var = Z_Malloc (sizeof(type), PU_LEVSPEC, NULL); \
+    SV_Read (var, sizeof(type)); \
+    var->sector = &sectors[(size_t)var->sector]; \
+    var->thinker.function.acp1 = (actionf_p1)func; \
+    P_AddThinker (&var->thinker);
 
 
 //
@@ -348,18 +410,12 @@ enum
 // T_LightFlash, (lightflash_t: sector_t * swizzle),
 // T_StrobeFlash, (strobe_t: sector_t *),
 // T_Glow, (glow_t: sector_t *),
+// T_FireFlicker, (fireflicker_t: sector_t *),
 // T_PlatRaise, (plat_t: sector_t *), - active list
 //
 void P_ArchiveSpecials (void)
 {
     thinker_t*		th;
-    ceiling_t*		ceiling;
-    vldoor_t*		door;
-    floormove_t*	floor;
-    plat_t*		plat;
-    lightflash_t*	flash;
-    strobe_t*		strobe;
-    glow_t*		glow;
     int			i;
 	
     // save off the current thinkers
@@ -367,102 +423,84 @@ void P_ArchiveSpecials (void)
     {
 	if (th->function.acv == (actionf_v)NULL)
 	{
+	    // an in-stasis ceiling or plat has no thinker function;
+	    // the flag byte after the class tells them apart on load
 	    for (i = 0; i < MAXCEILINGS;i++)
 		if (activeceilings[i] == (ceiling_t *)th)
 		    break;
 	    
 	    if (i<MAXCEILINGS)
 	    {
-		*save_p++ = tc_ceiling;
-		PADSAVEP();
-		ceiling = (ceiling_t *)save_p;
-		memcpy (ceiling, th, sizeof(*ceiling));
-		save_p += sizeof(*ceiling);
-		ceiling->sector = (sector_t *)(ceiling->sector - sectors);
+		ARCHIVE (ceiling_t, ceiling, tc_ceiling);
+		SV_WriteByte (0);
+		continue;
+	    }
+
+	    for (i = 0; i < MAXPLATS;i++)
+		if (activeplats[i] == (plat_t *)th)
+		    break;
+
+	    if (i<MAXPLATS)
+	    {
+		ARCHIVE (plat_t, plat, tc_plat);
+		SV_WriteByte (0);
 	    }
 	    continue;
 	}
 			
 	if (th->function.acp1 == (actionf_p1)T_MoveCeiling)
 	{
-	    *save_p++ = tc_ceiling;
-	    PADSAVEP();
-	    ceiling = (ceiling_t *)save_p;
-	    memcpy (ceiling, th, sizeof(*ceiling));
-	    save_p += sizeof(*ceiling);
-	    ceiling->sector = (sector_t *)(ceiling->sector - sectors);
+	    ARCHIVE (ceiling_t, ceiling, tc_ceiling);
+	    SV_WriteByte (1);
 	    continue;
 	}
 			
 	if (th->function.acp1 == (actionf_p1)T_VerticalDoor)
 	{
-	    *save_p++ = tc_door;
-	    PADSAVEP();
-	    door = (vldoor_t *)save_p;
-	    memcpy (door, th, sizeof(*door));
-	    save_p += sizeof(*door);
-	    door->sector = (sector_t *)(door->sector - sectors);
+	    ARCHIVE (vldoor_t, door, tc_door);
 	    continue;
 	}
 			
 	if (th->function.acp1 == (actionf_p1)T_MoveFloor)
 	{
-	    *save_p++ = tc_floor;
-	    PADSAVEP();
-	    floor = (floormove_t *)save_p;
-	    memcpy (floor, th, sizeof(*floor));
-	    save_p += sizeof(*floor);
-	    floor->sector = (sector_t *)(floor->sector - sectors);
+	    ARCHIVE (floormove_t, floor, tc_floor);
 	    continue;
 	}
 			
 	if (th->function.acp1 == (actionf_p1)T_PlatRaise)
 	{
-	    *save_p++ = tc_plat;
-	    PADSAVEP();
-	    plat = (plat_t *)save_p;
-	    memcpy (plat, th, sizeof(*plat));
-	    save_p += sizeof(*plat);
-	    plat->sector = (sector_t *)(plat->sector - sectors);
+	    ARCHIVE (plat_t, plat, tc_plat);
+	    SV_WriteByte (1);
 	    continue;
 	}
 			
 	if (th->function.acp1 == (actionf_p1)T_LightFlash)
 	{
-	    *save_p++ = tc_flash;
-	    PADSAVEP();
-	    flash = (lightflash_t *)save_p;
-	    memcpy (flash, th, sizeof(*flash));
-	    save_p += sizeof(*flash);
-	    flash->sector = (sector_t *)(flash->sector - sectors);
+	    ARCHIVE (lightflash_t, flash, tc_flash);
 	    continue;
 	}
 			
 	if (th->function.acp1 == (actionf_p1)T_StrobeFlash)
 	{
-	    *save_p++ = tc_strobe;
-	    PADSAVEP();
-	    strobe = (strobe_t *)save_p;
-	    memcpy (strobe, th, sizeof(*strobe));
-	    save_p += sizeof(*strobe);
-	    strobe->sector = (sector_t *)(strobe->sector - sectors);
+	    ARCHIVE (strobe_t, strobe, tc_strobe);
 	    continue;
 	}
 			
 	if (th->function.acp1 == (actionf_p1)T_Glow)
 	{
-	    *save_p++ = tc_glow;
-	    PADSAVEP();
-	    glow = (glow_t *)save_p;
-	    memcpy (glow, th, sizeof(*glow));
-	    save_p += sizeof(*glow);
-	    glow->sector = (sector_t *)(glow->sector - sectors);
+	    ARCHIVE (glow_t, glow, tc_glow);
+	    continue;
+	}
+
+	if (th->function.acp1 == (actionf_p1)T_FireFlicker)
+	{
+	    ARCHIVE (fireflicker_t, fire, tc_fire);
 	    continue;
 	}
     }
 	
     // add a terminating marker
-    *save_p++ = tc_endspecials;	
+    SV_WriteByte (tc_endspecials);
 
 }
 
@@ -473,112 +511,78 @@ void P_ArchiveSpecials (void)
 void P_UnArchiveSpecials (void)
 {
     byte		tclass;
-    ceiling_t*		ceiling;
-    vldoor_t*		door;
-    floormove_t*	floor;
-    plat_t*		plat;
-    lightflash_t*	flash;
-    strobe_t*		strobe;
-    glow_t*		glow;
-	
 	
     // read in saved thinkers
     while (1)
     {
-	tclass = *save_p++;
+	tclass = SV_ReadByte ();
 	switch (tclass)
 	{
 	  case tc_endspecials:
 	    return;	// end of list
 			
 	  case tc_ceiling:
-	    PADSAVEP();
-	    ceiling = Z_Malloc (sizeof(*ceiling), PU_LEVEL, NULL);
-	    memcpy (ceiling, save_p, sizeof(*ceiling));
-	    save_p += sizeof(*ceiling);
-	    ceiling->sector = &sectors[(int)ceiling->sector];
+	  {
+	    UNARCHIVE (ceiling_t, ceiling, T_MoveCeiling);
 	    ceiling->sector->specialdata = ceiling;
-
-	    if (ceiling->thinker.function.acp1)
-		ceiling->thinker.function.acp1 = (actionf_p1)T_MoveCeiling;
-
-	    P_AddThinker (&ceiling->thinker);
+	    if (!SV_ReadByte ())
+		ceiling->thinker.function.acv = (actionf_v)NULL;
 	    P_AddActiveCeiling(ceiling);
 	    break;
+	  }
 				
 	  case tc_door:
-	    PADSAVEP();
-	    door = Z_Malloc (sizeof(*door), PU_LEVEL, NULL);
-	    memcpy (door, save_p, sizeof(*door));
-	    save_p += sizeof(*door);
-	    door->sector = &sectors[(int)door->sector];
+	  {
+	    UNARCHIVE (vldoor_t, door, T_VerticalDoor);
 	    door->sector->specialdata = door;
-	    door->thinker.function.acp1 = (actionf_p1)T_VerticalDoor;
-	    P_AddThinker (&door->thinker);
 	    break;
+	  }
 				
 	  case tc_floor:
-	    PADSAVEP();
-	    floor = Z_Malloc (sizeof(*floor), PU_LEVEL, NULL);
-	    memcpy (floor, save_p, sizeof(*floor));
-	    save_p += sizeof(*floor);
-	    floor->sector = &sectors[(int)floor->sector];
+	  {
+	    UNARCHIVE (floormove_t, floor, T_MoveFloor);
 	    floor->sector->specialdata = floor;
-	    floor->thinker.function.acp1 = (actionf_p1)T_MoveFloor;
-	    P_AddThinker (&floor->thinker);
 	    break;
+	  }
 				
 	  case tc_plat:
-	    PADSAVEP();
-	    plat = Z_Malloc (sizeof(*plat), PU_LEVEL, NULL);
-	    memcpy (plat, save_p, sizeof(*plat));
-	    save_p += sizeof(*plat);
-	    plat->sector = &sectors[(int)plat->sector];
+	  {
+	    UNARCHIVE (plat_t, plat, T_PlatRaise);
 	    plat->sector->specialdata = plat;
-
-	    if (plat->thinker.function.acp1)
-		plat->thinker.function.acp1 = (actionf_p1)T_PlatRaise;
-
-	    P_AddThinker (&plat->thinker);
+	    if (!SV_ReadByte ())
+		plat->thinker.function.acv = (actionf_v)NULL;
 	    P_AddActivePlat(plat);
 	    break;
+	  }
 				
 	  case tc_flash:
-	    PADSAVEP();
-	    flash = Z_Malloc (sizeof(*flash), PU_LEVEL, NULL);
-	    memcpy (flash, save_p, sizeof(*flash));
-	    save_p += sizeof(*flash);
-	    flash->sector = &sectors[(int)flash->sector];
-	    flash->thinker.function.acp1 = (actionf_p1)T_LightFlash;
-	    P_AddThinker (&flash->thinker);
+	  {
+	    UNARCHIVE (lightflash_t, flash, T_LightFlash);
 	    break;
+	  }
 				
 	  case tc_strobe:
-	    PADSAVEP();
-	    strobe = Z_Malloc (sizeof(*strobe), PU_LEVEL, NULL);
-	    memcpy (strobe, save_p, sizeof(*strobe));
-	    save_p += sizeof(*strobe);
-	    strobe->sector = &sectors[(int)strobe->sector];
-	    strobe->thinker.function.acp1 = (actionf_p1)T_StrobeFlash;
-	    P_AddThinker (&strobe->thinker);
+	  {
+	    UNARCHIVE (strobe_t, strobe, T_StrobeFlash);
 	    break;
+	  }
 				
 	  case tc_glow:
-	    PADSAVEP();
-	    glow = Z_Malloc (sizeof(*glow), PU_LEVEL, NULL);
-	    memcpy (glow, save_p, sizeof(*glow));
-	    save_p += sizeof(*glow);
-	    glow->sector = &sectors[(int)glow->sector];
-	    glow->thinker.function.acp1 = (actionf_p1)T_Glow;
-	    P_AddThinker (&glow->thinker);
+	  {
+	    UNARCHIVE (glow_t, glow, T_Glow);
 	    break;
+	  }
+
+	  case tc_fire:
+	  {
+	    UNARCHIVE (fireflicker_t, fire, T_FireFlicker);
+	    break;
+	  }
 				
 	  default:
-	    I_Error ("P_UnarchiveSpecials:Unknown tclass %i "
-		     "in savegame",tclass);
+	    I_Error ("Bad savegame (special %i)",tclass);
 	}
 	
     }
 
 }
-

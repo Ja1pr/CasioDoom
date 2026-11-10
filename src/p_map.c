@@ -1094,7 +1094,7 @@ boolean	PTR_UseTraverse (intercept_t* in)
 {
     int		side;
 	
-    if (!in->d.LN_SPECIAL(line))
+    if (!LN_SPECIAL(in->d.line))
     {
 	P_LineOpening (in->d.line);
 	if (openrange <= 0)

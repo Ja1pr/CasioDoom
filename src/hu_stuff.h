@@ -1,20 +1,12 @@
-// Emacs style mode select   -*- C++ -*- 
 //-----------------------------------------------------------------------------
 //
-// $Id:$
-//
 // Copyright (C) 1993-1996 by id Software, Inc.
-//
-// This source is available for distribution and/or modification
-// only under the terms of the DOOM Source Code License as
-// published by id Software. All rights reserved.
-//
-// The source is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// FITNESS FOR A PARTICULAR PURPOSE. See the DOOM Source Code License
-// for more details.
+// CasioDoom changes: GPL, see LICENSE.
 //
 // DESCRIPTION:  Head up display
+//
+//  CasioDoom: one tiny font (3x5 glyphs in 4x6 cells) is used for all
+//  text in the game: messages, menus, intermission and finale.
 //
 //-----------------------------------------------------------------------------
 
@@ -23,23 +15,17 @@
 
 #include "d_event.h"
 
-
 //
 // Globally visible constants.
 //
 #define HU_FONTSTART	'!'	// the first font characters
 #define HU_FONTEND	'_'	// the last font characters
 
-// Calculate # of glyphs in font.
-#define HU_FONTSIZE	(HU_FONTEND - HU_FONTSTART + 1)	
-
-#define HU_BROADCAST	5
-
-#define HU_MSGREFRESH	KEY_ENTER
-#define HU_MSGX		0
-#define HU_MSGY		0
-#define HU_MSGWIDTH	64	// in characters
-#define HU_MSGHEIGHT	1	// in lines
+// Size of a character cell, in pixels.
+#define HU_CHARW	4
+#define HU_CHARH	6
+// Characters that fit on one line.
+#define HU_COLUMNS	(SCREENWIDTH/HU_CHARW)
 
 #define HU_MSGTIMEOUT	(4*TICRATE)
 
@@ -54,13 +40,16 @@ boolean HU_Responder(event_t* ev);
 
 void HU_Ticker(void);
 void HU_Drawer(void);
-char HU_dequeueChatChar(void);
-void HU_Erase(void);
 
+// Draws a string (black on a white box). '\n' starts a new line.
+void HU_DrawText (int x, int y, const char* string);
+// Draws at most [count] characters of one line.
+void HU_DrawTextN (int x, int y, const char* string, int count);
+// Black on whatever is there (no box).
+void HU_DrawChar (int x, int y, int c);
+
+// Name of the level being played, for the automap.
+const char* HU_LevelName (void);
+const char* HU_LevelNameFor (int episode, int map);
 
 #endif
-//-----------------------------------------------------------------------------
-//
-// $Log:$
-//
-//-----------------------------------------------------------------------------

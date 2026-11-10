@@ -26,6 +26,7 @@
 
 #include "i_system.h"
 #include "doomdef.h"
+#include "z_zone.h"
 #include "p_local.h"
 
 #include "g_game.h"
@@ -43,7 +44,7 @@
 //
 // CHANGE THE TEXTURE OF A WALL SWITCH TO ITS OPPOSITE
 //
-switchlist_t alphSwitchList[] =
+static const switchlist_t alphSwitchList[] =
 {
     // Doom shareware episode 1 switches
     {"SW1BRCOM",	"SW2BRCOM",	1},
@@ -94,7 +95,7 @@ switchlist_t alphSwitchList[] =
     {"\0",		"\0",		0}
 };
 
-short		switchlist[MAXSWITCHES * 2];
+short*		switchlist;
 int		numswitches;
 button_t        buttonlist[MAXBUTTONS];
 
@@ -110,6 +111,7 @@ void P_InitSwitchList(void)
     int		t1;
     int		t2;
 	
+    switchlist = Z_Malloc ((MAXSWITCHES*2+1)*sizeof(short), PU_STATIC, 0);
     episode = 1;
 
     if (gamemode == registered || gamemode == retail)

@@ -37,7 +37,15 @@ void P_UnArchiveThinkers (void);
 void P_ArchiveSpecials (void);
 void P_UnArchiveSpecials (void);
 
-extern byte*		save_p; 
+// The save file stream (the file itself is opened with I_FileOpen).
+void	SV_Begin (void);
+boolean	SV_End (boolean writing);
+void	SV_Write (const void* data, int len);
+void	SV_Read (void* data, int len);
+void	SV_WriteByte (int v);
+int	SV_ReadByte (void);
+
+ 
 
 
 #endif

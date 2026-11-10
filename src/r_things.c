@@ -794,7 +794,6 @@ void R_DrawMasked (void)
     
     // draw the psprites on top of everything
     //  but does not draw on side views
-    if (!viewangleoffset)		
 	R_DrawPlayerSprites ();
 }
 

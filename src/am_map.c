@@ -31,7 +31,6 @@
 #include "p_local.h"
 #include "w_wad.h"
 
-#include "m_cheat.h"
 #include "i_system.h"
 
 // Needs access to LFB.
@@ -47,41 +46,22 @@
 #include "am_map.h"
 
 
-// For use if I do walls with outsides/insides
-#define REDS		(256-5*16)
-#define REDRANGE	16
-#define BLUES		(256-4*16+8)
-#define BLUERANGE	8
-#define GREENS		(7*16)
-#define GREENRANGE	16
-#define GRAYS		(6*16)
-#define GRAYSRANGE	16
-#define BROWNS		(4*16)
-#define BROWNRANGE	16
-#define YELLOWS		(256-32+7)
-#define YELLOWRANGE	1
+// CasioDoom: the automap is black lines on a white LCD. The different
+// line kinds are told apart by grey levels, which dither into dotted lines.
 #define BLACK		0
-#define WHITE		(256-47)
+#define WHITE		63
 
 // Automap colors
-#define BACKGROUND	BLACK
-#define YOURCOLORS	WHITE
-#define YOURRANGE	0
-#define WALLCOLORS	REDS
-#define WALLRANGE	REDRANGE
-#define TSWALLCOLORS	GRAYS
-#define TSWALLRANGE	GRAYSRANGE
-#define FDWALLCOLORS	BROWNS
-#define FDWALLRANGE	BROWNRANGE
-#define CDWALLCOLORS	YELLOWS
-#define CDWALLRANGE	YELLOWRANGE
-#define THINGCOLORS	GREENS
-#define THINGRANGE	GREENRANGE
+#define BACKGROUND	WHITE
+#define YOURCOLORS	BLACK
+#define WALLCOLORS	BLACK
+#define TSWALLCOLORS	44
+#define FDWALLCOLORS	24
+#define CDWALLCOLORS	36
+#define THINGCOLORS	20
 #define SECRETWALLCOLORS WALLCOLORS
-#define SECRETWALLRANGE WALLRANGE
-#define GRIDCOLORS	(GRAYS + GRAYSRANGE/2)
-#define GRIDRANGE	0
-#define XHAIRCOLORS	GRAYS
+#define GRIDCOLORS	50
+#define XHAIRCOLORS	BLACK
 
 // drawing stuff
 #define	FB		0
@@ -103,10 +83,10 @@
 #define AM_NUMMARKPOINTS 10
 
 // scale on entry
-#define INITSCALEMTOF (.2*FRACUNIT)
+#define INITSCALEMTOF (.08*FRACUNIT)
 // how much the automap moves window per tic in frame-buffer coordinates
 // moves 140 pixels in 1 second
-#define F_PANINC	4
+#define F_PANINC	2
 // how much zoom-in per tic
 // goes to 2x in 1 second
 #define M_ZOOMIN        ((int) (1.02*FRACUNIT))
@@ -157,7 +137,7 @@ typedef struct
 //   starting from the middle.
 //
 #define R ((8*PLAYERRADIUS)/7)
-mline_t player_arrow[] = {
+static const mline_t player_arrow[] = {
     { { -R+R/8, 0 }, { R, 0 } }, // -----
     { { R, 0 }, { R-R/2, R/4 } },  // ----->
     { { R, 0 }, { R-R/2, -R/4 } },
@@ -170,7 +150,7 @@ mline_t player_arrow[] = {
 #define NUMPLYRLINES (sizeof(player_arrow)/sizeof(mline_t))
 
 #define R ((8*PLAYERRADIUS)/7)
-mline_t cheat_player_arrow[] = {
+static const mline_t cheat_player_arrow[] = {
     { { -R+R/8, 0 }, { R, 0 } }, // -----
     { { R, 0 }, { R-R/2, R/6 } },  // ----->
     { { R, 0 }, { R-R/2, -R/6 } },
@@ -192,7 +172,7 @@ mline_t cheat_player_arrow[] = {
 #define NUMCHEATPLYRLINES (sizeof(cheat_player_arrow)/sizeof(mline_t))
 
 #define R (FRACUNIT)
-mline_t triangle_guy[] = {
+static const mline_t triangle_guy[] = {
     { { -.867*R, -.5*R }, { .867*R, -.5*R } },
     { { .867*R, -.5*R } , { 0, R } },
     { { 0, R }, { -.867*R, -.5*R } }
@@ -201,7 +181,7 @@ mline_t triangle_guy[] = {
 #define NUMTRIANGLEGUYLINES (sizeof(triangle_guy)/sizeof(mline_t))
 
 #define R (FRACUNIT)
-mline_t thintriangle_guy[] = {
+static const mline_t thintriangle_guy[] = {
     { { -.5*R, -.7*R }, { R, 0 } },
     { { R, 0 }, { -.5*R, .7*R } },
     { { -.5*R, .7*R }, { -.5*R, -.7*R } }
@@ -219,7 +199,7 @@ static int 	leveljuststarted = 1; 	// kluge until AM_LevelInit() is called
 
 boolean    	automapactive = false;
 static int 	finit_width = SCREENWIDTH;
-static int 	finit_height = SCREENHEIGHT - 32;
+static int 	finit_height = SCREENHEIGHT - ST_HEIGHT;
 
 // location of window on screen
 static int 	f_x;
@@ -277,14 +257,11 @@ static fixed_t scale_ftom;
 
 static player_t *plr; // the player represented by an arrow
 
-static patch_t *marknums[10]; // numbers used for marking by the automap
+static int marknums; // lump of the first number used for marking
 static mpoint_t markpoints[AM_NUMMARKPOINTS]; // where the points are
 static int markpointnum = 0; // next point to be assigned
 
 static int followplayer = 1; // specifies whether to follow the player around
-
-static unsigned char cheat_amap_seq[] = { 0xb2, 0x26, 0x26, 0x2e, 0xff };
-static cheatseq_t cheat_amap = { cheat_amap_seq, 0 };
 
 static boolean stopped = true;
 
@@ -494,24 +471,11 @@ void AM_initVariables(void)
 //
 void AM_loadPics(void)
 {
-    int i;
-    char namebuf[9];
-  
-    for (i=0;i<10;i++)
-    {
-	sprintf(namebuf, "AMMNUM%d", i);
-	marknums[i] = W_CacheLumpName(namebuf, PU_STATIC);
-    }
-
+    marknums = W_GetNumForName ("AMMNUM0");
 }
 
 void AM_unloadPics(void)
 {
-    int i;
-  
-    for (i=0;i<10;i++)
-	Z_ChangeTag(marknums[i], PU_CACHE);
-
 }
 
 void AM_clearMarks(void)
@@ -691,11 +655,6 @@ AM_Responder
 	    cheatstate=0;
 	    rc = false;
 	}
-	if (!deathmatch && cht_CheckCheat(&cheat_amap, ev->data1))
-	{
-	    rc = false;
-	    cheating = (cheating+1) % 3;
-	}
     }
 
     else if (ev->type == ev_keyup)
@@ -774,11 +733,17 @@ void AM_doFollowPlayer(void)
 //
 //
 //
+// IDDT: show everything, then things as well.
+void AM_Cheat (void)
+{
+    cheating = (cheating+1) % 3;
+}
+
 void AM_updateLightLev(void)
 {
     static nexttic = 0;
     //static int litelevels[] = { 0, 3, 5, 6, 6, 7, 7, 7 };
-    static int litelevels[] = { 0, 4, 7, 10, 12, 14, 15, 15 };
+    static const signed char litelevels[] = { 0, 4, 7, 10, 12, 14, 15, 15 };
     static int litelevelscnt = 0;
    
     // Change light level
@@ -982,7 +947,6 @@ AM_drawFline
     register int ay;
     register int d;
     
-    static fuck = 0;
 
     // For debugging only
     if (      fl->a.x < 0 || fl->a.x >= f_w
@@ -990,7 +954,6 @@ AM_drawFline
 	   || fl->b.x < 0 || fl->b.x >= f_w
 	   || fl->b.y < 0 || fl->b.y >= f_h)
     {
-	fprintf(stderr, "fuck %d \r", fuck++);
 	return;
     }
 
@@ -1118,41 +1081,41 @@ void AM_drawWalls(void)
 	l.a.y = LN_V1(&lines[i])->y;
 	l.b.x = LN_V2(&lines[i])->x;
 	l.b.y = LN_V2(&lines[i])->y;
-	if (cheating || (lines[i].flags & ML_MAPPED))
+	if (cheating || linedata[i].mapped)
 	{
 	    if ((lines[i].flags & LINE_NEVERSEE) && !cheating)
 		continue;
 	    if (!LN_BACK(&lines[i]))
 	    {
-		AM_drawMline(&l, WALLCOLORS+lightlev);
+		AM_drawMline(&l, WALLCOLORS);
 	    }
 	    else
 	    {
 		if (LN_SPECIAL(&lines[i]) == 39)
 		{ // teleporters
-		    AM_drawMline(&l, WALLCOLORS+WALLRANGE/2);
+		    AM_drawMline(&l, WALLCOLORS+0/2);
 		}
 		else if (lines[i].flags & ML_SECRET) // secret door
 		{
-		    if (cheating) AM_drawMline(&l, SECRETWALLCOLORS + lightlev);
-		    else AM_drawMline(&l, WALLCOLORS+lightlev);
+		    if (cheating) AM_drawMline(&l, SECRETWALLCOLORS );
+		    else AM_drawMline(&l, WALLCOLORS);
 		}
 		else if (LN_BACK(&lines[i])->floorheight
 			   != LN_FRONT(&lines[i])->floorheight) {
-		    AM_drawMline(&l, FDWALLCOLORS + lightlev); // floor level change
+		    AM_drawMline(&l, FDWALLCOLORS ); // floor level change
 		}
 		else if (LN_BACK(&lines[i])->ceilingheight
 			   != LN_FRONT(&lines[i])->ceilingheight) {
-		    AM_drawMline(&l, CDWALLCOLORS+lightlev); // ceiling level change
+		    AM_drawMline(&l, CDWALLCOLORS); // ceiling level change
 		}
 		else if (cheating) {
-		    AM_drawMline(&l, TSWALLCOLORS+lightlev);
+		    AM_drawMline(&l, TSWALLCOLORS);
 		}
 	    }
 	}
 	else if (plr->powers[pw_allmap])
 	{
-	    if (!(lines[i].flags & LINE_NEVERSEE)) AM_drawMline(&l, GRAYS+3);
+	    if (!(lines[i].flags & LINE_NEVERSEE)) AM_drawMline(&l, TSWALLCOLORS);
 	}
     }
 }
@@ -1234,7 +1197,7 @@ void AM_drawPlayers(void)
 {
     int		i;
     player_t*	p;
-    static int 	their_colors[] = { GREENS, GRAYS, BROWNS, REDS };
+
     int		their_color = -1;
     int		color;
 
@@ -1265,7 +1228,7 @@ void AM_drawPlayers(void)
 	if (p->powers[pw_invisibility])
 	    color = 246; // *close* to black
 	else
-	    color = their_colors[their_color];
+	    color = YOURCOLORS;
 	
 	AM_drawLineCharacter
 	    (player_arrow, NUMPLYRLINES, 0, p->mo->angle,
@@ -1289,7 +1252,7 @@ AM_drawThings
 	{
 	    AM_drawLineCharacter
 		(thintriangle_guy, NUMTHINTRIANGLEGUYLINES,
-		 16<<FRACBITS, t->angle, colors+lightlev, t->x, t->y);
+		 16<<FRACBITS, t->angle, colors, t->x, t->y);
 	    t = t->snext;
 	}
     }
@@ -1305,12 +1268,12 @@ void AM_drawMarks(void)
 	{
 	    //      w = SHORT(marknums[i]->width);
 	    //      h = SHORT(marknums[i]->height);
-	    w = 5; // because something's wrong with the wad, i guess
+	    w = 4;
 	    h = 6; // because something's wrong with the wad, i guess
 	    fx = CXMTOF(markpoints[i].x);
 	    fy = CYMTOF(markpoints[i].y);
 	    if (fx >= f_x && fx <= f_w - w && fy >= f_y && fy <= f_h - h)
-		V_DrawPatch(fx, fy, FB, marknums[i]);
+		V_DrawPatch(fx, fy, FB, W_CacheLumpNum (marknums + i, PU_CACHE));
 	}
     }
 
@@ -1332,7 +1295,7 @@ void AM_Drawer (void)
     AM_drawWalls();
     AM_drawPlayers();
     if (cheating==2)
-	AM_drawThings(THINGCOLORS, THINGRANGE);
+	AM_drawThings(THINGCOLORS, 0);
     AM_drawCrosshair(XHAIRCOLORS);
 
     AM_drawMarks();

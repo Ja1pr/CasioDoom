@@ -108,6 +108,15 @@ const wadfrag_t* I_MapWad (int* count)
 
 int I_GetTime (void)
 {
+    static int	polls;
+
+    // virtual time: one tic per frame, and it also moves on when the
+    // game is just waiting for the clock
+    if (++polls > 8)
+    {
+	polls = 0;
+	hosttime++;
+    }
     return hosttime;
 }
 
@@ -217,6 +226,30 @@ void I_ShutdownGraphics (void)
 {
 }
 
+#include "../p_local.h"
+#include "../r_local.h"
+// What the level needs on the 32 bit calculator (sizes from sh-elf-gcc).
+static void host_stats (void)
+{
+    thinker_t*	th;
+    int		mobjs = 0, others = 0;
+    int		est;
+
+    for (th = thinkercap.next ; th && th != &thinkercap ; th = th->next)
+    {
+	if (th->function.acp1 == (actionf_p1)P_MobjThinker)
+	    mobjs++;
+	else
+	    others++;
+    }
+    est = mobjs*(120+20) + others*(48+20) + numsectors*32 + numlines*4
+	+ numsides/8 + bmapwidth*bmapheight*4;
+    printf ("level E%dM%d: %d sectors %d lines %d sides, blockmap %dx%d, "
+	    "%d mobjs %d specials -> about %d bytes of level RAM on SH4\n",
+	    gameepisode, gamemap, numsectors, numlines, numsides, bmapwidth,
+	    bmapheight, mobjs, others, est);
+}
+
 void I_ShowMono (const byte* bits)
 {
     char	name[256];
@@ -252,6 +285,8 @@ void I_ShowMono (const byte* bits)
     hosttime++;
     if (framecount >= maxframes)
     {
+	if (gamestate == GS_LEVEL)
+	    host_stats ();
 	printf ("done: %d frames, heap peak %d of %d bytes, now free %d\n",
 		framecount, host_peakused, Z_TotalMemory (), Z_FreeMemory ());
 	exit (0);

@@ -72,4 +72,7 @@ void    W_ReadLump (int lump, void *dest);
 const void*	W_CacheLumpNum (int lump, int tag);
 const void*	W_CacheLumpName (const char* name, int tag);
 
+// Frees the heap copy of a lump, if it had to be copied.
+void	W_ReleaseLump (const void* ptr);
+
 #endif

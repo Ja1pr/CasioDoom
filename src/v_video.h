@@ -61,6 +61,13 @@ V_DrawPatchFlipped
   const patch_t*	patch );
 
 void
+V_DrawSprite
+( int		x,
+  int		y,
+  const patch_t*	patch,
+  boolean	flipped );
+
+void
 V_FillRect
 ( int		x,
   int		y,

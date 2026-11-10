@@ -57,11 +57,11 @@
 //
 typedef struct
 {
-    boolean	istexture;
-    int		picnum;
-    int		basepic;
-    int		numpics;
-    int		speed;
+    short	istexture;
+    short	picnum;
+    short	basepic;
+    short	numpics;
+    short	speed;
     
 } anim_t;
 
@@ -70,17 +70,16 @@ typedef struct
 //
 typedef struct
 {
-    boolean	istexture;	// if false, it is a flat
+    signed char	istexture;	// if false, it is a flat
     char	endname[9];
     char	startname[9];
-    int		speed;
+    signed char	speed;
 } animdef_t;
 
 
 
 #define MAXANIMS                32
 
-extern anim_t	anims[MAXANIMS];
 extern anim_t*	lastanim;
 
 //
@@ -96,7 +95,7 @@ extern anim_t*	lastanim;
 //  and end entry, in the order found in
 //  the WAD file.
 //
-animdef_t		animdefs[] =
+static const animdef_t	animdefs[] =
 {
     {false,	"NUKAGE3",	"NUKAGE1",	8},
     {false,	"FWATER4",	"FWATER1",	8},
@@ -129,17 +128,14 @@ animdef_t		animdefs[] =
     {-1}
 };
 
-anim_t		anims[MAXANIMS];
+anim_t*		anims;
 anim_t*		lastanim;
 
 
 //
 //      Animating line specials
 //
-#define MAXLINEANIMS            64
 
-extern  short	numlinespecials;
-extern  const line_t*	linespeciallist[MAXLINEANIMS];
 
 
 
@@ -149,6 +145,7 @@ void P_InitPicAnims (void)
 
     
     //	Init animation
+    anims = Z_Malloc (MAXANIMS*sizeof(anim_t), PU_STATIC, 0);
     lastanim = anims;
     for (i=0 ; animdefs[i].istexture != -1 ; i++)
     {
@@ -354,8 +351,6 @@ P_FindNextHighestFloor
 	// Check for overflow. Exit.
 	if ( h >= MAX_ADJOINING_SECTORS )
 	{
-	    fprintf( stderr,
-		     "Sector with more than 20 adjoining sectors\n" );
 	    break;
 	}
     }
@@ -1204,8 +1199,6 @@ int EV_DoDonut(const line_t*	line)
 // After the map has been loaded, scan for specials
 //  that spawn thinkers
 //
-short		numlinespecials;
-const line_t*		linespeciallist[MAXLINEANIMS];
 
 
 // Parses command line parameters.
@@ -1306,20 +1299,6 @@ void P_SpawnSpecials (void)
 
     
     //	Init line EFFECTs
-    numlinespecials = 0;
-    for (i = 0;i < numlines; i++)
-    {
-	switch(LN_SPECIAL(&lines[i]))
-	{
-	  case 48:
-	    // EFFECT FIRSTCOL SCROLL+
-	    linespeciallist[numlinespecials] = &lines[i];
-	    numlinespecials++;
-	    break;
-	}
-    }
-
-    
     //	Init other misc stuff
     for (i = 0;i < MAXCEILINGS;i++)
 	activeceilings[i] = NULL;
