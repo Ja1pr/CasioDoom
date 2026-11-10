@@ -114,6 +114,18 @@ P_SpawnMobj
 void 	P_RemoveMobj (mobj_t* th);
 boolean	P_SetMobjState (mobj_t* mobj, statenum_t state);
 void 	P_MobjThinker (mobj_t* mobj);
+void 	P_StaticThinker (mobj_t* mobj);
+boolean	P_IsStaticType (int type);
+
+// Static things have no player/momentum/target fields.
+#define P_MobjIsStatic(mo) \
+    ((mo)->thinker.function.acp1 == (actionf_p1)P_StaticThinker)
+#define P_MobjPlayer(mo)	(P_MobjIsStatic(mo) ? (player_t *)0 : (mo)->player)
+
+// Is this thinker a map object (full or static)?
+#define P_IsMobjThinker(th) \
+    ((th)->function.acp1 == (actionf_p1)P_MobjThinker \
+     || (th)->function.acp1 == (actionf_p1)P_StaticThinker)
 
 void	P_SpawnPuff (fixed_t x, fixed_t y, fixed_t z);
 void 	P_SpawnBlood (fixed_t x, fixed_t y, fixed_t z, int damage);

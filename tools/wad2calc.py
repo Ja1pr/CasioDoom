@@ -344,6 +344,17 @@ def scale_ui(img, fx, fy):
     return out
 
 
+def precompensate(img):
+    """The engine stretches greys 3..43 to the full range when it dithers
+    (DOOM levels are dark). Pictures get the inverse here, so that they
+    come out the way they were drawn."""
+    for row in img.pix:
+        for x, v in enumerate(row):
+            if v is not None:
+                row[x] = 3 + (v * 40 + 31) // 63
+    return img
+
+
 def stretch_contrast(img, amount=1.0):
     """Stretch the grey range of a picture to use the full 0..63 range."""
     vals = sorted(v for row in img.pix for v in row if v is not None)
@@ -987,6 +998,7 @@ class Converter:
             for x, v in enumerate(row):
                 if v is None:
                     row[x] = 0
+        precompensate(out)
         out.left = out.top = 0
         self.ui_patch(name, out)
         return True
@@ -1035,9 +1047,10 @@ class Converter:
                 cell.blit(img, 5 - img.left, 0 - img.top)
                 small = resample(cell, 12, 9)
                 stretch_contrast(small, 1.0)
+                precompensate(small)
                 self.ui_patch(name, small)
         # full-screen pictures
-        for name in ("TITLEPIC", "CREDIT", "INTERPIC", "WIMAP0", "WIMAP1",
+        for name in ("TITLEPIC", "INTERPIC", "WIMAP0", "WIMAP1",
                      "WIMAP2", "BOSSBACK", "VICTORY2", "ENDPIC", "PFUB1",
                      "PFUB2"):
             self.fullscreen(name)
@@ -1052,6 +1065,7 @@ class Converter:
         if d:
             logo = scale_ui(decode_patch(d, self.gray), 0.4, 0.32)
             stretch_contrast(logo, 1.0)
+            precompensate(logo)
             logo.left = logo.top = 0
             self.ui_patch("M_DOOM", logo)
         # menu cursor (two frames)
@@ -1065,6 +1079,24 @@ class Converter:
         self.ui_patch("WIURH0", rows_image(
             ["ooooooo", "o#####o", "o#ooo#o", "o#o#o#o", "o#ooo#o",
              "o#####o", "ooooooo"]))
+        # the credits page is text, unreadable when scaled: retype it
+        credit_lines = [
+            "          D O O M",
+            "    (C) 1993 ID SOFTWARE",
+            "",
+            "PROGRAMMING: JOHN CARMACK,",
+            " JOHN ROMERO, DAVE TAYLOR",
+            "ART: ADRIAN CARMACK, K. CLOUD",
+            "DESIGN: SANDY PETERSEN ...",
+            "",
+            "CASIODOOM: FX-9860GIII PORT",
+            "128X64, 1 BIT, NO SOUND",
+        ]
+        img = Image(128, 64, WHITE)
+        for i, line in enumerate(credit_lines):
+            img.blit(text_image(line, False), 1, 2 + 6 * i)
+        self.ui_patch("CREDIT", img)
+
         # help screen: the key bindings
         help_lines = [
             "CASIODOOM - CONTROLS",

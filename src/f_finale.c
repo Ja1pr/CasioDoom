@@ -246,9 +246,15 @@ static int F_TextLayout (int count, int firstline, boolean draw)
     {
 	if (c == '\n')
 	{
-	    col = 0;
-	    line++;
-	    continue;
+	    if (*ch == '\n' || (ch - finaletext >= 2 && ch[-2] == '\n'))
+	    {
+		// an empty line: a real paragraph break
+		col = 0;
+		line++;
+		continue;
+	    }
+	    // the line breaks were made for a 40 column screen: reflow
+	    c = ' ';
 	}
 	if (c == ' ')
 	{

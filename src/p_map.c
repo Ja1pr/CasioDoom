@@ -97,7 +97,7 @@ boolean PIT_StompThing (mobj_t* thing)
 	return true;
     
     // monsters don't stomp things except on boss level
-    if ( !tmthing->player && gamemap != 30)
+    if ( !P_MobjPlayer(tmthing) && gamemap != 30)
 	return false;	
 		
     P_DamageMobj (thing, tmthing, tmthing, 10000);
@@ -214,7 +214,7 @@ boolean PIT_CheckLine (const line_t* ld)
 	if ( ld->flags & ML_BLOCKING )
 	    return false;	// explicitly blocking everything
 
-	if ( !tmthing->player && ld->flags & ML_BLOCKMONSTERS )
+	if ( !P_MobjPlayer(tmthing) && ld->flags & ML_BLOCKMONSTERS )
 	    return false;	// block monsters only
     }
 

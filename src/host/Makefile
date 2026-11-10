@@ -11,10 +11,12 @@ doomhost: $(OBJ)
 	$(CC) -o $@ $(OBJ) -lm
 
 build/%.o: %.c | build
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MMD -c $< -o $@
 
 build:
 	mkdir -p build
+
+-include $(OBJ:.o=.d)
 
 clean:
 	rm -rf build doomhost

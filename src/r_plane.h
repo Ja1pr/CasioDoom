@@ -29,6 +29,9 @@
 
 
 // Visplane related.
+// Size of the store for clip values (bytes).
+#define MAXOPENINGS	(SCREENWIDTH*24)
+
 extern  clip_t*		lastopening;
 
 

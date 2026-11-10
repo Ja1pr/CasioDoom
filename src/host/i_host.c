@@ -161,9 +161,26 @@ void I_StartFrame (void)
 {
 }
 
+void G_ExitLevel (void);
+void F_StartFinale (void);
+static int	exitat = -1;
+static int	finaleat = -1;
+
 void I_StartTic (void)
 {
     event_t	ev;
+
+    // test hooks: -exitlevel TIC, -finale TIC
+    if (hosttime == exitat)
+    {
+	exitat = -1;
+	G_ExitLevel ();
+    }
+    if (hosttime == finaleat)
+    {
+	finaleat = -1;
+	F_StartFinale ();
+    }
 
     while (nextkey < numkeys && keyscript[nextkey].tic <= hosttime)
     {
@@ -228,6 +245,7 @@ void I_ShutdownGraphics (void)
 
 #include "../p_local.h"
 #include "../r_local.h"
+#include "../m_random.h"
 // What the level needs on the 32 bit calculator (sizes from sh-elf-gcc).
 static void host_stats (void)
 {
@@ -244,6 +262,10 @@ static void host_stats (void)
     }
     est = mobjs*(120+20) + others*(48+20) + numsectors*32 + numlines*4
 	+ numsides/8 + bmapwidth*bmapheight*4;
+    printf ("state: gametic %d leveltime %d rnd %d player %d %d %d health %d kills %d\n",
+	    gametic, leveltime, P_Random (), players[0].mo ? players[0].mo->x : 0,
+	    players[0].mo ? players[0].mo->y : 0, players[0].mo ? players[0].mo->angle >> 16 : 0,
+	    players[0].health, players[0].killcount);
     printf ("level E%dM%d: %d sectors %d lines %d sides, blockmap %dx%d, "
 	    "%d mobjs %d specials -> about %d bytes of level RAM on SH4\n",
 	    gameepisode, gamemap, numsectors, numlines, numsides, bmapwidth,
@@ -308,6 +330,12 @@ int main (int argc, char** argv)
     p = M_CheckParm ("-dump");
     if (p && p < argc-1)
 	dumpdir = argv[p+1];
+    p = M_CheckParm ("-exitlevel");
+    if (p && p < argc-1)
+	exitat = atoi (argv[p+1]);
+    p = M_CheckParm ("-finale");
+    if (p && p < argc-1)
+	finaleat = atoi (argv[p+1]);
     p = M_CheckParm ("-keys");
     if (p && p < argc-1)
 	parsekeys (argv[p+1]);

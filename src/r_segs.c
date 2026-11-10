@@ -98,7 +98,6 @@ static int	sidetop;
 static int	sidemid;
 static int	sidebottom;
 
-#define MAXOPENINGS	(SCREENWIDTH*32)
 extern clip_t*	openings;
 
 short*		maskedtexturecol;

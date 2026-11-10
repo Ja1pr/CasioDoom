@@ -266,7 +266,8 @@ void P_UnArchiveWorld (void)
 typedef enum
 {
     tc_end,
-    tc_mobj
+    tc_mobj,
+    tc_static
 
 } thinkerclass_t;
 
@@ -283,6 +284,15 @@ void P_ArchiveThinkers (void)
     // save off the current thinkers
     for (th = thinkercap.next ; th != &thinkercap ; th=th->next)
     {
+	if (th->function.acp1 == (actionf_p1)P_StaticThinker)
+	{
+	    SV_WriteByte (tc_static);
+	    memcpy (&mobj, th, MOBJ_STATICSIZE);
+	    mobj.state = (state_t *)(size_t)(mobj.state - states);
+	    SV_Write (&mobj, MOBJ_STATICSIZE);
+	    continue;
+	}
+
 	if (th->function.acp1 == (actionf_p1)P_MobjThinker)
 	{
 	    SV_WriteByte (tc_mobj);
@@ -320,7 +330,7 @@ void P_UnArchiveThinkers (void)
     {
 	next = currentthinker->next;
 	
-	if (currentthinker->function.acp1 == (actionf_p1)P_MobjThinker)
+	if (P_IsMobjThinker (currentthinker))
 	    P_RemoveMobj ((mobj_t *)currentthinker);
 	else
 	    Z_Free (currentthinker);
@@ -354,6 +364,16 @@ void P_UnArchiveThinkers (void)
 	    mobj->floorz = SS_SECTOR(mobj->subsector)->floorheight;
 	    mobj->ceilingz = SS_SECTOR(mobj->subsector)->ceilingheight;
 	    mobj->thinker.function.acp1 = (actionf_p1)P_MobjThinker;
+	    P_AddThinker (&mobj->thinker);
+	    break;
+			
+	  case tc_static:
+	    mobj = Z_Malloc (MOBJ_STATICSIZE, PU_LEVEL, NULL);
+	    SV_Read (mobj, MOBJ_STATICSIZE);
+	    mobj->state = &states[(size_t)mobj->state];
+	    P_SetThingPosition (mobj);
+	    mobj->info = &mobjinfo[mobj->type];
+	    mobj->thinker.function.acp1 = (actionf_p1)P_StaticThinker;
 	    P_AddThinker (&mobj->thinker);
 	    break;
 			

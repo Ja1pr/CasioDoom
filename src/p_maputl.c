@@ -474,7 +474,7 @@ P_BlockLinesIterator
   boolean(*func)(const line_t*) )
 {
     int			offset;
-    short*		list;
+    const short*	list;
     const line_t*		ld;
 	
     if (x<0

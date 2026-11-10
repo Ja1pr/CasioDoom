@@ -23,6 +23,8 @@
 #ifndef __P_MOBJ__
 #define __P_MOBJ__
 
+#include <stddef.h>
+
 // Basics.
 #include "tables.h"
 #include "m_fixed.h"
@@ -235,39 +237,32 @@ typedef struct mobj_s
     fixed_t		radius;
     fixed_t		height;	
 
+    const mobjinfo_t*	info;	// &mobjinfo[mobj->type]
+    const state_t*	state;
+    int			flags;
+
+    short		type;
+    short		tics;	// state tic counter
+    short		health;
+
+    // For nightmare respawn: index of the map thing, -1 = none.
+    short		spawnpoint;	
+
+    //
+    // CasioDoom: everything above is all that scenery and pickups need.
+    // Such "static" things are allocated only up to here (see
+    // P_IsStaticType), which saves a third of their memory. The fields
+    // below MUST NOT be touched unless the thing is a full mobj.
+    //
+
     // Momentums, used to update position.
     fixed_t		momx;
     fixed_t		momy;
     fixed_t		momz;
 
-    short		type;
-    short		tics;	// state tic counter
-    const mobjinfo_t*	info;	// &mobjinfo[mobj->type]
-    
-    const state_t*	state;
-    int			flags;
-    short		health;
-
-    // Movement direction, movement generation (zig-zagging).
-    signed char		movedir;	// 0-7
-    // Player number last looked for.
-    signed char		lastlook;	
-    short		movecount;	// when 0, select a new dir
-
-    // Reaction time: if non 0, don't attack yet.
-    // Used by player to freeze a bit after teleporting.
-    short		reactiontime;   
-
     // Thing being chased/attacked (or NULL),
     // also the originator for missiles.
     struct mobj_s*	target;
-
-    // If >0, the target will be chased
-    // no matter what (even if shot)
-    short		threshold;
-
-    // For nightmare respawn: index of the map thing, -1 = none.
-    short		spawnpoint;	
 
     // Additional info record for player avatars only.
     // Only valid if type == MT_PLAYER
@@ -276,7 +271,25 @@ typedef struct mobj_s
     // Thing being chased/attacked for tracers.
     struct mobj_s*	tracer;	
     
+    short		movecount;	// when 0, select a new dir
+
+    // Reaction time: if non 0, don't attack yet.
+    // Used by player to freeze a bit after teleporting.
+    short		reactiontime;   
+
+    // If >0, the target will be chased
+    // no matter what (even if shot)
+    short		threshold;
+
+    // Movement direction, movement generation (zig-zagging).
+    signed char		movedir;	// 0-7
+    // Player number last looked for.
+    signed char		lastlook;	
+
 } mobj_t;
+
+// Size of the part of mobj_t that static things have.
+#define MOBJ_STATICSIZE	((int)offsetof(mobj_t, momx))
 
 
 

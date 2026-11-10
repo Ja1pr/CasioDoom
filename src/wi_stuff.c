@@ -149,7 +149,7 @@ static boolean		snl_pointeron = false;
 // slam background
 static void WI_slamBackground(void)
 {
-    char	name[9];
+    char	name[16];
 
     if (gamemode == commercial || wbs->epsd > 2)
 	strcpy (name, "INTERPIC");

@@ -500,6 +500,41 @@ void P_MobjThinker (mobj_t* mobj)
 
 
 //
+// CasioDoom: static things.
+// Pickups and scenery never move, attack or get hurt, so they are
+// allocated without the momentum / AI part of mobj_t and only have
+// their animation run.
+//
+boolean P_IsStaticType (int type)
+{
+    const mobjinfo_t*	info = &mobjinfo[type];
+
+    if (info->flags & (MF_SHOOTABLE|MF_COUNTKILL|MF_MISSILE|MF_SKULLFLY|MF_FLOAT))
+	return false;
+    if (info->flags & MF_SPECIAL)
+	return true;
+    // scenery that can be placed in a map and has no behaviour
+    return info->doomednum != -1
+	&& info->seestate == S_NULL
+	&& info->speed == 0;
+}
+
+void P_StaticThinker (mobj_t* mobj)
+{
+    // cycle through states,
+    // calling action functions at transitions
+    if (mobj->tics != -1)
+    {
+	mobj->tics--;
+		
+	// you can cycle through multiple states in a tic
+	if (!mobj->tics)
+	    P_SetMobjState (mobj, mobj->state->nextstate);
+    }
+}
+
+
+//
 // P_SpawnMobj
 //
 mobj_t*
@@ -513,8 +548,13 @@ P_SpawnMobj
     const state_t*	st;
     const mobjinfo_t*	info;
 	
-    mobj = Z_Malloc (sizeof(*mobj), PU_LEVEL, NULL);
-    memset (mobj, 0, sizeof (*mobj));
+    boolean	isstatic;
+    int		lastlook;
+
+    isstatic = P_IsStaticType (type);
+    mobj = Z_Malloc (isstatic ? MOBJ_STATICSIZE : (int)sizeof(*mobj),
+		     PU_LEVEL, NULL);
+    memset (mobj, 0, isstatic ? MOBJ_STATICSIZE : (int)sizeof (*mobj));
     info = &mobjinfo[type];
 	
     mobj->type = type;
@@ -526,10 +566,14 @@ P_SpawnMobj
     mobj->flags = info->flags;
     mobj->health = info->spawnhealth;
 
-    if (gameskill != sk_nightmare)
-	mobj->reactiontime = info->reactiontime;
-    
-    mobj->lastlook = P_Random () % MAXPLAYERS;
+    // (the random number is always drawn, to keep demos in sync)
+    lastlook = P_Random () % MAXPLAYERS;
+    if (!isstatic)
+    {
+	if (gameskill != sk_nightmare)
+	    mobj->reactiontime = info->reactiontime;
+	mobj->lastlook = lastlook;
+    }
     mobj->spawnpoint = -1;
     // do not set the state with P_SetMobjState,
     // because action routines can not be called yet
@@ -553,7 +597,8 @@ P_SpawnMobj
     else 
 	mobj->z = z;
 
-    mobj->thinker.function.acp1 = (actionf_p1)P_MobjThinker;
+    mobj->thinker.function.acp1 = isstatic ? (actionf_p1)P_StaticThinker
+	: (actionf_p1)P_MobjThinker;
 	
     P_AddThinker (&mobj->thinker);
 
@@ -656,6 +701,9 @@ void P_SpawnPlayer (const mapthing_t* mthing)
 }
 
 
+// Heap kept free for what a level creates while it is played.
+#define LOWMEMORY	(14*1024)
+
 //
 // P_SpawnMapThing
 // The fields of the mapthing should
@@ -709,6 +757,12 @@ void P_SpawnMapThing (const mapthing_t* mthing, int index)
     if (i==NUMMOBJTYPES)
 	return;
 		
+    // CasioDoom: when the heap is nearly full, leave out pure scenery
+    // (lamps, corpses, ...) so that the level can still be played.
+    if (!(mobjinfo[i].flags & (MF_SPECIAL|MF_SHOOTABLE|MF_COUNTKILL|MF_COUNTITEM))
+	&& Z_FreeMemory () < LOWMEMORY)
+	return;
+
     // don't spawn keycards and players in deathmatch
     if (deathmatch && mobjinfo[i].flags & MF_NOTDMATCH)
 	return;
