@@ -14,6 +14,7 @@
 #include "z_zone.h"
 
 #include "hu_stuff.h"
+#include "st_stuff.h"
 #include "w_wad.h"
 #include "v_video.h"
 
@@ -238,7 +239,8 @@ void HU_Drawer(void)
 	len = strlen (s);
 	if (len > HU_COLUMNS-1)
 	    len = HU_COLUMNS-1;
-	HU_DrawTextN (1, viewheight - HU_CHARH, s, len);
+	// the automap always sits above the status bar
+	HU_DrawTextN (1, SCREENHEIGHT - ST_HEIGHT - HU_CHARH, s, len);
     }
 }
 

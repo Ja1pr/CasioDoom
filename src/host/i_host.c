@@ -250,26 +250,30 @@ void I_ShutdownGraphics (void)
 static void host_stats (void)
 {
     thinker_t*	th;
-    int		mobjs = 0, others = 0;
+    int		mobjs = 0, statics = 0, others = 0;
     int		est;
 
     for (th = thinkercap.next ; th && th != &thinkercap ; th = th->next)
     {
 	if (th->function.acp1 == (actionf_p1)P_MobjThinker)
 	    mobjs++;
+	else if (th->function.acp1 == (actionf_p1)P_StaticThinker)
+	    statics++;
 	else
 	    others++;
     }
-    est = mobjs*(120+20) + others*(48+20) + numsectors*32 + numlines*4
-	+ numsides/8 + bmapwidth*bmapheight*4;
+    // sizes on the calculator: mobj_t 120, static part 88, block header 16
+    est = mobjs*(120+16) + statics*(88+16) + others*(48+16) + numsectors*32
+	+ numlines*4 + numsides/8 + bmapwidth*bmapheight*4;
     printf ("state: gametic %d leveltime %d rnd %d player %d %d %d health %d kills %d\n",
 	    gametic, leveltime, P_Random (), players[0].mo ? players[0].mo->x : 0,
 	    players[0].mo ? players[0].mo->y : 0, players[0].mo ? players[0].mo->angle >> 16 : 0,
 	    players[0].health, players[0].killcount);
-    printf ("level E%dM%d: %d sectors %d lines %d sides, blockmap %dx%d, "
-	    "%d mobjs %d specials -> about %d bytes of level RAM on SH4\n",
-	    gameepisode, gamemap, numsectors, numlines, numsides, bmapwidth,
-	    bmapheight, mobjs, others, est);
+    printf ("level E%dM%d: %d sectors, %d lines, blockmap %dx%d, %d mobjs + %d "
+	    "static things, %d specials -> about %d KB of level RAM on the "
+	    "calculator\n",
+	    gameepisode, gamemap, numsectors, numlines, bmapwidth,
+	    bmapheight, mobjs, statics, others, (est + 1023) / 1024);
 }
 
 void I_ShowMono (const byte* bits)
